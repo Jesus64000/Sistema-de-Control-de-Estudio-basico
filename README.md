@@ -6,16 +6,16 @@ Sistema web local (100% offline en interfaz y operación) para la gestión acad�
 
 ## Características principales
 
-- **Control de acceso y roles:** Administrador, Operador y Docente (con Portal Docente propio), contraseñas cifradas con `scrypt`, cambio obligatorio de clave inicial, bandeja de solicitudes de recuperación y protección CSRF en todas las mutaciones.
-- **Gestión de períodos escolares:** selector global de período, modo consulta histórica de solo lectura, cierre formal de período y copia automática de secciones/asignaciones entre años escolares.
-- **Estructura académica completa:** niveles educativos, grados (`1.º` a `6.º Grado`) y años (`1.º` a `5.º Año`), secciones por turno, materias por bloque de formación, docentes y asignaciones por sección.
-- **Matrícula e inscripción guiada en 3 pasos:** buscador rápido de reinscripción, validación campo por campo (frontend y backend), auto-normalización de cédulas y teléfonos venezolanos, recomendación académica automática y restricción de grados superiores al aprobar.
+- **Control de acceso y roles:** Administrador, Operador y Docente (con Portal Docente propio), contraseñas cifradas con `scrypt`, cambio obligatorio de clave inicial, protección contra fuerza bruta en login (bloqueo temporal tras 5 intentos fallidos), cookies `HttpOnly`/`SameSite=Lax`, páginas de error institucionales y protección CSRF en todas las mutaciones.
+- **Gestión de períodos escolares:** selector global de período, modo consulta histórica de solo lectura, cierre formal con checklist previo de verificación (notas pendientes y asignaciones) y copia automática de secciones/asignaciones entre años escolares.
+- **Estructura académica completa:** niveles educativos, grados (`1.º` a `6.º Grado`) y años (`1.º` a `5.º Año`), secciones por turno, materias por bloque de formación, gestión de materias asignadas directo desde la tabla de docentes (con resumen de carga) y asignaciones por sección.
+- **Matrícula, inscripción y traslados:** buscador rápido de reinscripción, asistente en 3 pasos con validación campo por campo, restricción de grados superiores al aprobar y traslado de sección dentro del período activo conservando calificaciones.
 - **Prosecución masiva inteligente:** reinscripción asistida por sección con sugerencias individuales (Promovido, Materia Pendiente, Repitiente, Egresado).
-- **Calificaciones y horarios:** carga de notas por lapso con cálculo automático de definitiva MPPE, navegación tipo hoja de cálculo y horarios semanales con motor anti-choques (por sección y por docente).
-- **Exportaciones oficiales:**
+- **Calificaciones y horarios:** carga de notas por lapso con cálculo automático de definitiva MPPE, y horarios semanales inteligentes (auto-docente al elegir materia, ficha de carga, disponibilidad en vivo y **bloqueo estricto** ante choques de sección, docente o aula/salón).
+- **Exportaciones oficiales y respaldo preventivo:**
   - **PDF:** Certificación de Calificaciones MPPE por período, Certificación Acumulada Multi-Año (rango Desde–Hasta), Lote PDF/ZIP, Constancia de Estudio, Boletín por Lapsos, Sábana Media General, Horarios Semanales y Lista de Asistencia (20 días).
   - **Excel (`.xlsx`):** Nómina de Estudiantes, Planilla por Materia, Sábana Primaria, Sábana Media General y Lista de Asistencia.
-  - **Respaldo (`.sql`):** Descarga completa de la base de datos desde Configuración (solo Administrador).
+  - **Respaldo (`.sql`):** Descarga completa de la base de datos desde Configuración (solo Administrador) con recordatorio preventivo en el Dashboard cuando pasan más de 15 días sin respaldar.
 
 ---
 

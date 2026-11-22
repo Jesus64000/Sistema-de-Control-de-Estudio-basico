@@ -29,6 +29,7 @@ from services.academico_service import (
     obtener_carga_editable_docente,
     obtener_periodo_activo,
     obtener_periodo_por_id,
+    obtener_resumen_cierre_periodo,
     obtener_resumen_docente,
     resolver_periodo_consulta,
     toggle_docente,
@@ -64,7 +65,7 @@ def index():
         solo_lectura=solo_lectura,
         niveles=listar_niveles(),
         grados=listar_grados_con_resumen(id_periodo),
-        docentes=listar_docentes_con_usuario(),
+        docentes=listar_docentes_con_usuario(id_periodo),
         secciones=listar_secciones_con_resumen(id_periodo) if id_periodo else [],
         bloques=listar_bloques(),
         materias=listar_materias(),
@@ -127,6 +128,16 @@ def periodo_activar(pid: int):
     activar_periodo(pid)
     session["periodo_consulta_id"] = pid
     return _respuesta_academico(True, "Período escolar activado.")
+
+
+@academico_bp.route("/api/periodos/<int:pid>/checklist-cierre", methods=["GET"])
+@admin_required
+def api_periodo_checklist_cierre(pid: int):
+    try:
+        resumen = obtener_resumen_cierre_periodo(pid)
+        return jsonify({"ok": True, **resumen})
+    except Exception as err:
+        return jsonify({"ok": False, "mensaje": str(err)}), 404
 
 
 @academico_bp.route("/periodos/cerrar/<int:pid>", methods=["POST"])

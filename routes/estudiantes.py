@@ -21,6 +21,7 @@ from services.estudiante_service import (
     marcar_egresado,
     obtener_expediente_completo,
     registrar_e_inscribir_estudiante,
+    trasladar_seccion_inscripcion,
 )
 
 estudiantes_bp = Blueprint("estudiantes", __name__, url_prefix="/estudiantes")
@@ -258,6 +259,20 @@ def reactivar(id_inscripcion: int):
     except Exception as err:
         flash(str(err), "error")
     return redirect(url_for("estudiantes.index", estado="todos"))
+
+
+@estudiantes_bp.route("/trasladar/<int:id_inscripcion>", methods=["POST"])
+@roles_required("admin", "operador")
+def trasladar_seccion(id_inscripcion: int):
+    id_sec_dest = request.form.get("id_seccion_destino", type=int)
+    try:
+        if not id_sec_dest:
+            raise ValueError("Debe seleccionar la sección de destino.")
+        res = trasladar_seccion_inscripcion(id_inscripcion, id_sec_dest)
+        flash(f"Estudiante trasladado de {res['origen']} a {res['destino']}.", "success")
+    except Exception as err:
+        flash(str(err), "error")
+    return redirect(url_for("estudiantes.index"))
 
 
 @estudiantes_bp.route("/egresar/<int:eid>", methods=["POST"])

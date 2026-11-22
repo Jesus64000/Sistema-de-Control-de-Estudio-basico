@@ -796,13 +796,13 @@
     }
   }
 
-  function navegarTabSeccion(ev, href) {
-    if (_cambiosPendientes && !confirm('Tienes calificaciones modificadas sin guardar. ¿Cambiar de pestaña y descartar los cambios?')) {
-      ev.preventDefault();
-      return false;
+  async function navegarTabSeccion(ev, href) {
+    ev.preventDefault();
+    if (_cambiosPendientes) {
+      const ok = await pedirConfirmacion('Tienes calificaciones modificadas sin guardar. ¿Cambiar de pestaña y descartar los cambios?', { confirmarTexto: 'Descartar y salir' });
+      if (!ok) return false;
     }
     _cambiosPendientes = false;
-    ev.preventDefault();
     cargarVistaSeccion(href, true);
     return false;
   }
@@ -814,9 +814,10 @@
     if (badge) badge.classList.remove('hidden');
   }
 
-  function cambiarGradoNotas(sel) {
-    if (_cambiosPendientes && !confirm('Tienes calificaciones modificadas sin guardar. ¿Cambiar de grado y descartar los cambios?')) {
-      return;
+  async function cambiarGradoNotas(sel) {
+    if (_cambiosPendientes) {
+      const ok = await pedirConfirmacion('Tienes calificaciones modificadas sin guardar. ¿Cambiar de grado y descartar los cambios?', { confirmarTexto: 'Descartar y cambiar' });
+      if (!ok) return;
     }
     _cambiosPendientes = false;
     const secSel = document.getElementById('sel-seccion-notas');
@@ -833,9 +834,10 @@
     if (btn) btn.classList.add('hidden');
   }
 
-  function cambiarSelectorNotas(sel) {
-    if (_cambiosPendientes && !confirm('Tienes calificaciones modificadas sin guardar. ¿Cambiar de vista y descartar los cambios?')) {
-      return;
+  async function cambiarSelectorNotas(sel) {
+    if (_cambiosPendientes) {
+      const ok = await pedirConfirmacion('Tienes calificaciones modificadas sin guardar. ¿Cambiar de vista y descartar los cambios?', { confirmarTexto: 'Descartar y cambiar' });
+      if (!ok) return;
     }
     _cambiosPendientes = false;
     if (sel.name === 'id_seccion') {
@@ -1248,7 +1250,7 @@
     if (!esAsign && !esBloque && !esDel) return;
 
     e.preventDefault();
-    if (esDel && !confirm(form.dataset.confirm || '¿Confirmar eliminación?')) return;
+    if (esDel && !(await pedirConfirmacion(form.dataset.confirm || '¿Confirmar eliminación?'))) return;
 
     const fd = new FormData(form);
     if (esAsign && e.submitter && e.submitter.name) {

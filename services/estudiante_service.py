@@ -1075,6 +1075,63 @@ def cambiar_estado_inscripcion(id_inscripcion: int, estado: str):
     ejecutar_accion("UPDATE inscripciones SET estado = %s WHERE id = %s", (estado, id_inscripcion))
 
 
+def trasladar_seccion_inscripcion(id_inscripcion: int, id_seccion_destino: int) -> dict:
+    """Traslada una inscripcion activa a otra seccion del mismo periodo manteniendo sus notas."""
+    insc = ejecutar_consulta(
+        "SELECT i.id, i.id_periodo, i.id_seccion, i.estado, "
+        "s.id_grado_anio, n.tipo_escala, g.nombre AS grado_origen, s.nombre AS seccion_origen "
+        "FROM inscripciones i "
+        "JOIN secciones s ON s.id = i.id_seccion "
+        "JOIN grados_anios g ON g.id = s.id_grado_anio "
+        "JOIN niveles_educativos n ON n.id = g.id_nivel "
+        "WHERE i.id = %s LIMIT 1",
+        (id_inscripcion,),
+        uno=True,
+    )
+    if not insc:
+        raise ValueError("Inscripción no encontrada.")
+    verificar_periodo_editable(insc["id_periodo"])
+    if insc["id_seccion"] == id_seccion_destino:
+        raise ValueError("El estudiante ya pertenece a esa sección.")
+
+    dest = ejecutar_consulta(
+        "SELECT s.id, s.id_periodo, s.id_grado_anio, s.activo, s.nombre AS seccion_destino, "
+        "g.nombre AS grado_destino, n.tipo_escala "
+        "FROM secciones s "
+        "JOIN grados_anios g ON g.id = s.id_grado_anio "
+        "JOIN niveles_educativos n ON n.id = g.id_nivel "
+        "WHERE s.id = %s LIMIT 1",
+        (id_seccion_destino,),
+        uno=True,
+    )
+    if not dest or not dest["activo"]:
+        raise ValueError("La sección de destino no existe o está inactiva.")
+    if dest["id_periodo"] != insc["id_periodo"]:
+        raise ValueError("La sección de destino debe pertenecer al mismo período escolar.")
+    if dest["tipo_escala"] != insc["tipo_escala"]:
+        raise ValueError("No se puede trasladar entre Primaria y Media General en la misma matrícula.")
+
+    if dest["tipo_escala"] == "numerica" and dest["id_grado_anio"] != insc["id_grado_anio"]:
+        tiene_notas_sec = ejecutar_consulta(
+            "SELECT 1 FROM calificaciones_secundaria WHERE id_inscripcion = %s LIMIT 1",
+            (id_inscripcion,),
+            uno=True,
+        )
+        if tiene_notas_sec:
+            raise ValueError(
+                "El estudiante ya posee calificaciones registradas en Media General; solo puede trasladarse a otra sección del mismo año."
+            )
+
+    ejecutar_accion(
+        "UPDATE inscripciones SET id_seccion = %s WHERE id = %s",
+        (id_seccion_destino, id_inscripcion),
+    )
+    return {
+        "origen": f"{insc['grado_origen']} \"{insc['seccion_origen']}\"",
+        "destino": f"{dest['grado_destino']} \"{dest['seccion_destino']}\"",
+    }
+
+
 def marcar_egresado(eid: int, egresado: bool):
     ejecutar_accion("UPDATE estudiantes SET egresado = %s WHERE id = %s", (bool(egresado), eid))
 

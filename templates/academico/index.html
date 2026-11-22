@@ -153,6 +153,7 @@
               <th class="px-4 py-3">Docente</th>
               <th class="px-4 py-3">Categoría / Esp.</th>
               <th class="px-4 py-3">Contacto</th>
+              <th class="px-4 py-3">Carga ({{ periodo_seleccionado.nombre if periodo_seleccionado else 'Período' }})</th>
               <th class="px-4 py-3">Acceso</th>
               <th class="px-4 py-3">Estado</th>
               <th class="px-4 py-3 text-right">Acciones</th>
@@ -170,6 +171,15 @@
               <td class="px-4 py-2.5 font-semibold">{{ d.apellidos }} {{ d.nombres }}</td>
               <td class="px-4 py-2.5 text-xs">{{ d.categoria }} · {{ d.especialidad or '-' }}</td>
               <td class="px-4 py-2.5 text-xs">{{ d.telefono or '-' }}{% if d.correo %} · {{ d.correo }}{% endif %}</td>
+              <td class="px-4 py-2.5 text-xs">
+                <div class="flex flex-wrap items-center gap-1 tabular-nums">
+                  <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-medium">{{ d.total_materias_asig or 0 }} mat.</span>
+                  <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-medium">{{ d.total_bloques_hor or 0 }} bloq.</span>
+                  {% if d.total_guias and d.total_guias > 0 %}
+                  <span class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">Guía ({{ d.total_guias }})</span>
+                  {% endif %}
+                </div>
+              </td>
               <td class="px-4 py-2.5 text-xs">
                 {% if d.tiene_usuario %}
                 <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-medium">Con usuario</span>
@@ -211,7 +221,7 @@
               </td>
             </tr>
             {% else %}
-            <tr><td colspan="7" class="px-4 py-6 text-center text-xs text-black dark:text-white opacity-75">Sin docentes registrados.</td></tr>
+            <tr><td colspan="8" class="px-4 py-6 text-center text-xs text-black dark:text-white opacity-75">Sin docentes registrados.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -361,12 +371,14 @@
                   data-fin="{{ p.fecha_fin or '' }}"
                   class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
                 >Editar</button>
-                <form method="POST" action="{{ url_for('academico.periodo_cerrar', pid=p.id) }}" class="form-academico-async" style="display:inline" data-confirm="{{ '¿Reabrir el período ' ~ p.nombre ~ ' para permitir modificaciones?' if p.cerrado else '¿Cerrar formalmente el período ' ~ p.nombre ~ '? Quedará bloqueado en modo solo lectura.' }}">
+                {% if p.cerrado %}
+                <form method="POST" action="{{ url_for('academico.periodo_cerrar', pid=p.id) }}" class="form-academico-async" style="display:inline" data-confirm="¿Reabrir el período {{ p.nombre }} para permitir modificaciones?">
                   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-                  <button type="submit" class="px-2.5 py-1 text-xs rounded border {{ 'border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400' if p.cerrado else 'border-amber-300 text-amber-800 dark:border-amber-900 dark:text-amber-300' }} font-medium">
-                    {{ 'Reabrir' if p.cerrado else 'Cerrar' }}
-                  </button>
+                  <button type="submit" class="px-2.5 py-1 text-xs rounded border border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400 font-medium">Reabrir</button>
                 </form>
+                {% else %}
+                <button type="button" onclick="abrirChecklistCierrePeriodo({{ p.id }}, '{{ p.nombre }}')" class="px-2.5 py-1 text-xs rounded border border-amber-300 text-amber-800 dark:border-amber-900 dark:text-amber-300 font-medium">Cerrar</button>
+                {% endif %}
                 {% if not p.activo %}
                 <form method="POST" action="{{ url_for('academico.periodo_activar', pid=p.id) }}" class="form-academico-async" style="display:inline" data-confirm="¿Activar el período {{ p.nombre }} como período escolar actual?">
                   <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
@@ -791,7 +803,7 @@
     const form = e.target;
     if (!form.classList || !form.classList.contains('form-academico-async')) return;
     e.preventDefault();
-    if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+    if (form.dataset.confirm && !(await pedirConfirmacion(form.dataset.confirm))) return;
 
     try {
       const resp = await fetch(form.action, {
@@ -891,7 +903,68 @@
       lista.innerHTML = '<p class="px-4 py-6 text-center text-xs text-red-700 dark:text-red-400">Error de conexión al consultar materias.</p>';
     }
   }
+
+  async function abrirChecklistCierrePeriodo(pid, nombre) {
+    const form = document.getElementById('form-checklist-cierre');
+    const body = document.getElementById('cierre-checklist-body');
+    const tit = document.getElementById('cierre-titulo-periodo');
+    if (!form || !body) return;
+    form.action = '/academico/periodos/cerrar/' + pid;
+    if (tit) tit.textContent = 'Cerrar Período ' + nombre;
+    body.innerHTML = '<p class="py-4 text-center opacity-75">Verificando estado de calificaciones y secciones...</p>';
+    abrirModal('modal-checklist-cierre');
+    try {
+      const res = await fetch('/academico/api/periodos/' + pid + '/checklist-cierre');
+      const d = await res.json();
+      if (!res.ok || !d.ok) {
+        body.innerHTML = `<p class="text-red-700 dark:text-red-400">${_escAcad(d.mensaje || 'No se pudo verificar el período.')}</p>`;
+        return;
+      }
+      const item = (lbl, val, ok) => `
+        <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border ${ok ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-black dark:text-white'}">
+          <span>${lbl}</span>
+          <span class="font-bold tabular-nums">${val}</span>
+        </div>`;
+      body.innerHTML =
+        `<p class="opacity-80">Revisión previa antes de bloquear el período <b>${_escAcad(d.periodo_nombre)}</b> en modo solo lectura:</p>` +
+        `<div class="space-y-2">` +
+        item('Inscripciones activas', d.total_inscripciones, true) +
+        item('Estudiantes de Primaria sin definitiva', d.primaria_sin_definitiva, d.primaria_sin_definitiva === 0) +
+        item('Notas de Media General sin definitiva', d.secundaria_sin_definitiva, d.secundaria_sin_definitiva === 0) +
+        item('Secciones sin docente guía/titular', d.secciones_sin_guia, d.secciones_sin_guia === 0) +
+        item('Materias sin docente asignado', d.materias_sin_docente, d.materias_sin_docente === 0) +
+        `</div>` +
+        (d.listo_para_cerrar
+          ? '<p class="text-emerald-700 dark:text-emerald-400 font-semibold">Todas las calificaciones definitivas están completas. Puedes cerrar el período con seguridad.</p>'
+          : '<p class="text-amber-800 dark:text-amber-300 font-semibold">Aún hay calificaciones definitivas pendientes. Igual puedes cerrarlo si deseas bloquearlo y reabrirlo luego cuando haga falta.</p>');
+    } catch (_) {
+      body.innerHTML = '<p class="text-red-700 dark:text-red-400">Error de conexión al consultar el checklist.</p>';
+    }
+  }
 </script>
+
+<!-- Modal Checklist previo al cierre formal de periodo -->
+<div id="modal-checklist-cierre" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Cierre de Año Escolar</div>
+        <h3 id="cierre-titulo-periodo" class="text-base font-bold text-white mt-0.5">Cerrar Período</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-checklist-cierre')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-checklist-cierre" method="POST" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div id="cierre-checklist-body" class="p-6 space-y-3 text-xs"></div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-checklist-cierre')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Confirmar Cierre Formal</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- Modal Asignar Materias y Secciones a un Docente -->
 <div id="modal-docente-materias" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">

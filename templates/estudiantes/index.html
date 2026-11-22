@@ -48,7 +48,7 @@
     </div>
 
     {% if periodo_activo and not secciones and not periodo_activo.cerrado and not solo_lectura %}
-    <div class="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2">
+    <div class="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2">
       <span>
         El período activo <b>{{ periodo_activo.nombre }}</b> aún no tiene secciones creadas. Los estudiantes registrados en años anteriores siguen visibles para consultar su expediente y certificados.
       </span>
@@ -229,6 +229,9 @@
               <div class="flex items-center justify-end gap-1.5" style="white-space:nowrap;">
                 {% if not est.id_inscripcion and not est.egresado and periodo_activo and not periodo_activo.cerrado and secciones %}
                 <button type="button" onclick='abrirModalReinscribir({{ est|tojson }})' class="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Reinscribir</button>
+                {% endif %}
+                {% if est.id_inscripcion and est.estado == 'activo' and not solo_lectura and secciones|length > 1 %}
+                <button type="button" onclick='abrirModalTrasladarSeccion({{ est|tojson }})' class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Sección</button>
                 {% endif %}
                 <button type="button" onclick="abrirVerExpediente({{ est.id }})" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">Ver</button>
                 <button type="button" onclick='abrirEditarEstudiante({{ est|tojson }})' class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Editar</button>
@@ -428,7 +431,7 @@
     <form id="form-prosecucion" method="POST" action="{{ url_for('estudiantes.prosecucion_lote') }}">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <input type="hidden" id="pros-decisiones-json" name="decisiones_json" value="[]">
-      <div class="p-6 max-h-[74vh] overflow-y-auto space-y-4 text-xs">
+      <div class="p-6 max-h-[72vh] overflow-y-auto space-y-4 text-xs">
         <div class="px-3.5 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200">
           Las sugerencias de promoción, materia pendiente, repitiente o egreso se calculan al momento de reinscribir. <b>Marca únicamente a los estudiantes que confirmaron su reinscripción</b> (los que no regresan quedan sin inscribir y conservan su expediente histórico).
         </div>
@@ -452,7 +455,7 @@
         </div>
 
         {% if not secciones %}
-        <div class="px-3.5 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200">
+        <div class="px-3.5 py-2.5 rounded-lg bg-amber-50 dark:bg-slate-900 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200">
           Aún no hay secciones creadas en <b>{{ periodo_activo.nombre }}</b>. Solo podrás marcar graduandos como Egresados hasta crear o copiar secciones en Estructura Académica.
         </div>
         {% endif %}
@@ -473,6 +476,44 @@
       <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
         <button type="button" onclick="cerrarModal('modal-prosecucion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
         <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Aplicar Reinscripción</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal Trasladar Seccion dentro del Periodo Activo -->
+{% if not solo_lectura and secciones|length > 1 %}
+<div id="modal-trasladar-seccion" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Cambio de Sección</div>
+        <h3 id="tras-est-nombre" class="text-base font-bold text-white mt-0.5">Estudiante</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-trasladar-seccion')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-trasladar-seccion" method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3 text-xs">
+        <div class="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+          Sección actual: <b id="tras-sec-actual">-</b>
+        </div>
+        <div>
+          <label for="tras-sec-destino" class="block font-semibold mb-1">Nueva Sección de Destino *</label>
+          <select id="tras-sec-destino" name="id_seccion_destino" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for s in secciones %}
+            <option value="{{ s.id }}" data-escala="{{ s.tipo_escala }}">{{ s.grado_nombre }} "{{ s.nombre }}" ({{ s.turno }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <p class="opacity-75">Las calificaciones ya registradas en el período se conservan asociadas a esta inscripción.</p>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-trasladar-seccion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Aplicar Traslado</button>
       </div>
     </form>
   </div>
@@ -990,11 +1031,11 @@
         });
       });
       if (faltaDestino) {
-        alert('Todos los estudiantes marcados deben tener un destino seleccionado.');
+        mostrarToast('Todos los estudiantes marcados deben tener un destino seleccionado.', 'error');
         return;
       }
       if (decisiones.length === 0) {
-        alert('Seleccione al menos un estudiante para aplicar la reinscripción.');
+        mostrarToast('Seleccione al menos un estudiante para aplicar la reinscripción.', 'error');
         return;
       }
       document.getElementById('pros-decisiones-json').value = JSON.stringify(decisiones);
@@ -1006,15 +1047,34 @@
         });
         const data = await resp.json();
         if (!resp.ok || !data.ok) {
-          alert(data.mensaje || 'No se pudo completar la prosecución.');
+          mostrarToast(data.mensaje || 'No se pudo completar la prosecución.', 'error');
           return;
         }
         cerrarModal('modal-prosecucion');
         window.location.reload();
       } catch (_) {
-        alert('Error de conexión al procesar la prosecución.');
+        mostrarToast('Error de conexión al procesar la prosecución.', 'error');
       }
     });
+  }
+
+  function abrirModalTrasladarSeccion(est) {
+    const form = document.getElementById('form-trasladar-seccion');
+    const sel = document.getElementById('tras-sec-destino');
+    if (!form || !sel || !est.id_inscripcion) return;
+    form.action = '/estudiantes/trasladar/' + est.id_inscripcion;
+    document.getElementById('tras-est-nombre').textContent = (est.apellidos || '') + ' ' + (est.nombres || '');
+    document.getElementById('tras-sec-actual').textContent = (est.grado_nombre || '') + ' "' + (est.seccion_nombre || '') + '"';
+    let primerVal = '';
+    Array.from(sel.options).forEach(opt => {
+      const mismaEscala = !est.tipo_escala || opt.dataset.escala === est.tipo_escala;
+      const distintaSec = String(opt.value) !== String(est.id_seccion);
+      opt.hidden = !mismaEscala;
+      opt.disabled = !mismaEscala || !distintaSec;
+      if (mismaEscala && distintaSec && !primerVal) primerVal = opt.value;
+    });
+    if (primerVal) sel.value = primerVal;
+    abrirModal('modal-trasladar-seccion');
   }
 </script>
 {% endblock %}

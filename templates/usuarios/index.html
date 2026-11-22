@@ -412,7 +412,7 @@
     const form = e.target;
     if (!form.classList || !form.classList.contains('form-usuarios-async')) return;
     e.preventDefault();
-    if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+    if (form.dataset.confirm && !(await pedirConfirmacion(form.dataset.confirm))) return;
 
     try {
       const resp = await fetch(form.action, {

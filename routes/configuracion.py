@@ -74,7 +74,12 @@ def index():
 def respaldo_sql():
     try:
         buf = generar_respaldo_sql()
-        marca = datetime.now().strftime("%Y%m%d_%H%M")
+        ahora = datetime.now()
+        try:
+            guardar_configuracion({"ultimo_respaldo_sql": ahora.strftime("%Y-%m-%d %H:%M")})
+        except Exception:
+            pass
+        marca = ahora.strftime("%Y%m%d_%H%M")
         return send_file(
             buf,
             mimetype="application/sql",

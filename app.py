@@ -1,5 +1,6 @@
 import secrets
-from flask import Flask, abort, g, request, session
+from datetime import timedelta
+from flask import Flask, abort, g, jsonify, render_template, request, session
 from config import Config
 from db import cerrar_conexion_peticion
 from routes.academico import academico_bp
@@ -25,6 +26,9 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = Config.SECRET_KEY
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
     app.teardown_appcontext(cerrar_conexion_peticion)
 
     @app.before_request
@@ -89,6 +93,27 @@ def create_app() -> Flask:
     app.register_blueprint(estudiantes_bp)
     app.register_blueprint(calificaciones_bp)
     app.register_blueprint(reportes_bp)
+
+    def _render_error(codigo: int, titulo: str, detalle: str):
+        if request.headers.get("X-Requested-With") == "fetch" or request.path.startswith("/api/"):
+            return jsonify({"ok": False, "mensaje": detalle}), codigo
+        return render_template("errors/error.html", codigo=codigo, titulo=titulo, detalle=detalle), codigo
+
+    @app.errorhandler(400)
+    def err_400(e):
+        return _render_error(400, "Solicitud inválida o sesión expirada", "La petición no pudo procesarse (verifica que la sesión no haya expirado e intenta nuevamente).")
+
+    @app.errorhandler(403)
+    def err_403(e):
+        return _render_error(403, "Acceso denegado", "No cuentas con permisos suficientes para realizar esta acción.")
+
+    @app.errorhandler(404)
+    def err_404(e):
+        return _render_error(404, "Página no encontrada", "La ruta solicitada no existe o fue movida.")
+
+    @app.errorhandler(500)
+    def err_500(e):
+        return _render_error(500, "Error interno del servidor", "Ocurrió un inconveniente inesperado al procesar la operación.")
 
     return app
 

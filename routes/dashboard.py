@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from db import ejecutar_consulta
 from services.academico_service import (
@@ -448,6 +449,29 @@ def index():
                     "url": url_for("usuarios.index"),
                     "prioridad": "normal",
                     "tipo": "usuario",
+                })
+
+            # 12. Recordatorio de respaldo SQL (> 15 dias sin respaldar)
+            ult_resp = (cfg.get("ultimo_respaldo_sql") or "").strip()
+            requiere_respaldo = True
+            detalle_resp = "Aún no se ha descargado un respaldo de la base de datos desde el sistema."
+            if ult_resp:
+                try:
+                    dt_resp = datetime.strptime(ult_resp[:16], "%Y-%m-%d %H:%M")
+                    dias_resp = (datetime.now() - dt_resp).days
+                    if dias_resp <= 15:
+                        requiere_respaldo = False
+                    else:
+                        detalle_resp = f"Último respaldo descargado hace {dias_resp} días ({ult_resp[:10]})."
+                except ValueError:
+                    pass
+            if requiere_respaldo:
+                alertas_pendientes.append({
+                    "titulo": "Respaldo preventivo de base de datos",
+                    "detalle": detalle_resp,
+                    "url": url_for("configuracion.index"),
+                    "prioridad": "normal",
+                    "tipo": "config",
                 })
 
     resumen_docente = None

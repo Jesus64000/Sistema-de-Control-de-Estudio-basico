@@ -73,6 +73,70 @@ def cambiar_cierre_periodo(pid: int, cerrar: bool):
     )
 
 
+def obtener_resumen_cierre_periodo(pid: int) -> dict:
+    """Devuelve un checklist previo al cierre formal de un periodo escolar."""
+    periodo = obtener_periodo_por_id(pid)
+    if not periodo:
+        raise ValueError("Período escolar no encontrado.")
+
+    total_insc = ejecutar_consulta(
+        "SELECT COUNT(*) AS c FROM inscripciones WHERE id_periodo = %s AND estado = 'activo'",
+        (pid,),
+        uno=True,
+    )["c"]
+
+    prim_sin_def = ejecutar_consulta(
+        "SELECT COUNT(*) AS c FROM inscripciones i "
+        "JOIN secciones s ON s.id = i.id_seccion "
+        "JOIN grados_anios g ON g.id = s.id_grado_anio "
+        "JOIN niveles_educativos n ON n.id = g.id_nivel "
+        "LEFT JOIN calificaciones_primaria cp ON cp.id_inscripcion = i.id "
+        "WHERE i.id_periodo = %s AND i.estado = 'activo' AND n.tipo_escala = 'literal' "
+        "AND (cp.definitiva IS NULL OR TRIM(cp.definitiva) = '')",
+        (pid,),
+        uno=True,
+    )["c"]
+
+    sec_sin_def = ejecutar_consulta(
+        "SELECT COUNT(*) AS c FROM inscripciones i "
+        "JOIN secciones s ON s.id = i.id_seccion "
+        "JOIN grados_anios g ON g.id = s.id_grado_anio "
+        "JOIN niveles_educativos n ON n.id = g.id_nivel "
+        "JOIN materias m ON m.id_grado_anio = s.id_grado_anio AND m.activo = TRUE "
+        "LEFT JOIN calificaciones_secundaria cs ON cs.id_inscripcion = i.id AND cs.id_materia = m.id "
+        "WHERE i.id_periodo = %s AND i.estado = 'activo' AND n.tipo_escala = 'numerica' "
+        "AND cs.definitiva IS NULL",
+        (pid,),
+        uno=True,
+    )["c"]
+
+    sec_sin_guia = ejecutar_consulta(
+        "SELECT COUNT(*) AS c FROM secciones "
+        "WHERE id_periodo = %s AND activo = TRUE AND id_docente_titular_guia IS NULL",
+        (pid,),
+        uno=True,
+    )["c"]
+
+    mats_sin_doc = ejecutar_consulta(
+        "SELECT COUNT(*) AS c FROM secciones s "
+        "JOIN materias m ON m.id_grado_anio = s.id_grado_anio AND m.activo = TRUE "
+        "LEFT JOIN asignaciones_docentes a ON a.id_periodo = s.id_periodo AND a.id_seccion = s.id AND a.id_materia = m.id "
+        "WHERE s.id_periodo = %s AND s.activo = TRUE AND a.id IS NULL",
+        (pid,),
+        uno=True,
+    )["c"]
+
+    return {
+        "periodo_nombre": periodo["nombre"],
+        "total_inscripciones": int(total_insc or 0),
+        "primaria_sin_definitiva": int(prim_sin_def or 0),
+        "secundaria_sin_definitiva": int(sec_sin_def or 0),
+        "secciones_sin_guia": int(sec_sin_guia or 0),
+        "materias_sin_docente": int(mats_sin_doc or 0),
+        "listo_para_cerrar": (int(prim_sin_def or 0) == 0 and int(sec_sin_def or 0) == 0),
+    }
+
+
 def copiar_secciones_periodo(
     id_periodo_origen: int,
     id_periodo_destino: int,
@@ -249,12 +313,17 @@ def listar_docentes(solo_activos: bool = True):
     return ejecutar_consulta(sql)
 
 
-def listar_docentes_con_usuario():
+def listar_docentes_con_usuario(id_periodo: int = None):
+    pid = id_periodo or 0
     return ejecutar_consulta(
         "SELECT d.*, "
-        "EXISTS(SELECT 1 FROM usuarios u WHERE u.id_docente = d.id AND u.activo = TRUE) AS tiene_usuario "
+        "EXISTS(SELECT 1 FROM usuarios u WHERE u.id_docente = d.id AND u.activo = TRUE) AS tiene_usuario, "
+        "(SELECT COUNT(*) FROM asignaciones_docentes a WHERE a.id_docente = d.id AND a.id_periodo = %s) AS total_materias_asig, "
+        "(SELECT COUNT(*) FROM horarios h WHERE h.id_docente = d.id AND h.id_periodo = %s) AS total_bloques_hor, "
+        "(SELECT COUNT(*) FROM secciones s WHERE s.id_docente_titular_guia = d.id AND s.id_periodo = %s AND s.activo = TRUE) AS total_guias "
         "FROM docentes d "
-        "ORDER BY d.apellidos ASC, d.nombres ASC"
+        "ORDER BY d.apellidos ASC, d.nombres ASC",
+        (pid, pid, pid),
     )
 
 

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Error {{ codigo }}{% endblock %}
+{% block header_title %}Aviso del Sistema{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto my-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden">
+  <div class="bg-institucional-950 text-white px-6 py-4">
+    <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Código {{ codigo }}</div>
+    <h2 class="text-base font-bold text-white mt-0.5">{{ titulo }}</h2>
+  </div>
+  <div class="p-6 space-y-4 text-sm">
+    <p class="text-black dark:text-white opacity-85">{{ detalle }}</p>
+    <div class="flex flex-wrap items-center gap-2 pt-2">
+      <a href="{{ url_for('dashboard.index') }}" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Ir al Inicio</a>
+      <button type="button" onclick="history.back()" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Volver atrás</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -98,7 +98,7 @@
           </a>
           <form method="POST" action="{{ url_for('auth.logout') }}" class="shrink-0">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-            <button type="submit" class="p-2 rounded-lg text-white hover:bg-red-900/40 transition-colors" title="Salir del sistema" aria-label="Salir">
+            <button type="submit" class="p-2 rounded-lg text-white hover:bg-white/10 transition-colors" title="Salir del sistema" aria-label="Salir">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             </button>
           </form>
@@ -113,9 +113,9 @@
           <div class="flex items-center justify-between text-[11px]">
             <label for="sidebar-periodo-select" class="uppercase tracking-wider text-blue-300 font-semibold">Período Escolar</label>
             {% if es_periodo_historico %}
-            <span class="px-1.5 py-0.5 rounded bg-amber-900/70 text-amber-200 font-semibold">Histórico</span>
+            <span class="px-1.5 py-0.5 rounded text-amber-200 font-semibold" style="background:rgba(120,53,15,0.7);">Histórico</span>
             {% elif periodo_consulta and periodo_consulta.cerrado %}
-            <span class="px-1.5 py-0.5 rounded bg-amber-900/70 text-amber-200 font-semibold">Cerrado</span>
+            <span class="px-1.5 py-0.5 rounded text-amber-200 font-semibold" style="background:rgba(120,53,15,0.7);">Cerrado</span>
             {% endif %}
           </div>
           <select
@@ -134,8 +134,8 @@
           </select>
         </form>
         {% else %}
-        <div class="px-0.5">
-          <span class="px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-200">Sin período activo</span>
+        <div class="px-1">
+          <span class="px-2 py-0.5 rounded-full text-amber-200" style="background:rgba(120,53,15,0.6);">Sin período activo</span>
         </div>
         {% endif %}
         </div>
@@ -212,7 +212,7 @@
         </div>
       </header>
       {% if usuario_actual and periodo_solo_lectura and periodo_consulta %}
-      <div class="no-print bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-900 px-4 lg:px-6 py-2 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+      <div class="no-print bg-amber-50 dark:bg-slate-900 border-b border-amber-200 dark:border-amber-800 px-4 lg:px-6 py-2 text-xs text-amber-800 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
         <span>
           <b>Modo consulta (solo lectura):</b> estás visualizando el período <b>{{ periodo_consulta.nombre }}</b>{% if periodo_consulta.cerrado %} (cerrado formalmente){% else %} (histórico){% endif %}.
         </span>
@@ -221,7 +221,7 @@
           <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="id_periodo" value="activo">
           <input type="hidden" name="next" value="{{ request.path }}">
-          <button type="submit" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40">
+          <button type="submit" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
             Volver al activo ({{ periodo_global.nombre }})
           </button>
         </form>
@@ -281,10 +281,10 @@
   <!-- Modal reutilizable para confirmar acciones delicadas -->
   <div id="modal-confirmar" class="no-print hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full p-5 shadow-lg">
-      <h3 class="text-sm font-bold text-black dark:text-white">Confirmar Acción</h3>
-      <p id="modal-confirmar-msg" class="text-xs text-black dark:text-white mt-2"></p>
+      <h3 id="modal-confirmar-titulo" class="text-sm font-bold text-black dark:text-white">Confirmar Acción</h3>
+      <p id="modal-confirmar-msg" class="text-xs text-black dark:text-white mt-2 opacity-85"></p>
       <div class="mt-5 flex justify-end gap-2">
-        <button type="button" onclick="cerrarModal('modal-confirmar')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="button" id="modal-confirmar-cancel" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Cancelar</button>
         <button type="button" id="modal-confirmar-btn" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Confirmar</button>
       </div>
     </div>
@@ -362,17 +362,81 @@
       btn.classList.toggle('opacity-50', !coincide);
     }
 
-    // Confirmacion reutilizable antes de enviar formularios criticos
+    // Confirmacion reutilizable (Promesa + soporte para formularios sincronos)
     let _formPendiente = null;
+    let _resolverConfirmacion = null;
+
+    function _finalizarConfirmacion(resultado) {
+      cerrarModal('modal-confirmar');
+      if (resultado && _formPendiente) {
+        const f = _formPendiente;
+        _formPendiente = null;
+        f.submit();
+        return;
+      }
+      _formPendiente = null;
+      if (_resolverConfirmacion) {
+        const res = _resolverConfirmacion;
+        _resolverConfirmacion = null;
+        res(resultado);
+      }
+    }
+
     function confirmarEnvio(form, mensaje) {
       _formPendiente = form;
+      _resolverConfirmacion = null;
+      document.getElementById('modal-confirmar-titulo').textContent = 'Confirmar Acción';
       document.getElementById('modal-confirmar-msg').textContent = mensaje;
+      document.getElementById('modal-confirmar-btn').textContent = 'Confirmar';
       abrirModal('modal-confirmar');
       return false;
     }
-    document.getElementById('modal-confirmar-btn').addEventListener('click', function() {
-      if (_formPendiente) _formPendiente.submit();
-    });
+
+    window.pedirConfirmacion = function(mensaje, opts) {
+      opts = opts || {};
+      _formPendiente = null;
+      if (_resolverConfirmacion) {
+        _resolverConfirmacion(false);
+        _resolverConfirmacion = null;
+      }
+      document.getElementById('modal-confirmar-titulo').textContent = opts.titulo || 'Confirmar Acción';
+      document.getElementById('modal-confirmar-msg').textContent = mensaje || '¿Deseas continuar con esta acción?';
+      document.getElementById('modal-confirmar-btn').textContent = opts.confirmarTexto || 'Confirmar';
+      abrirModal('modal-confirmar');
+      return new Promise(resolve => { _resolverConfirmacion = resolve; });
+    };
+
+    document.getElementById('modal-confirmar-btn').addEventListener('click', () => _finalizarConfirmacion(true));
+    document.getElementById('modal-confirmar-cancel').addEventListener('click', () => _finalizarConfirmacion(false));
+
+    // Notificacion flotante global reutilizable desde cualquier modulo
+    window.mostrarToast = function(msg, tipo) {
+      let cont = document.getElementById('toast-container');
+      if (!cont) {
+        cont = document.createElement('div');
+        cont.id = 'toast-container';
+        cont.className = 'no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none';
+        document.body.appendChild(cont);
+      }
+      const item = document.createElement('div');
+      const esErr = tipo === 'error';
+      item.className = 'toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ' +
+        (esErr
+          ? 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100'
+          : 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white');
+      const span = document.createElement('span');
+      span.textContent = msg;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Cerrar';
+      btn.className = 'text-xs font-bold opacity-80 hover:opacity-100 shrink-0';
+      btn.onclick = () => cerrarToast(item);
+      item.appendChild(span);
+      item.appendChild(btn);
+      cont.appendChild(item);
+      requestAnimationFrame(() => item.classList.add('is-visible'));
+      setTimeout(() => { if (item.parentElement) cerrarToast(item); }, 4000);
+    };
 
     // Controla la aparicion y auto-cierre de las notificaciones flotantes
     function cerrarToast(el) {

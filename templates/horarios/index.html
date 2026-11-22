@@ -477,7 +477,7 @@
     if (!esBloque && !esDel) return;
 
     e.preventDefault();
-    if (esDel && !confirm(form.dataset.confirm || '¿Eliminar este bloque horario?')) return;
+    if (esDel && !(await pedirConfirmacion(form.dataset.confirm || '¿Eliminar este bloque horario?'))) return;
 
     try {
       const resp = await fetch(form.action, {
