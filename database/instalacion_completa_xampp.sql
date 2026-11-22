@@ -570,4 +570,34 @@ INSERT IGNORE INTO calificaciones_secundaria (id_inscripcion, id_materia, lapso_
 INSERT IGNORE INTO calificaciones_secundaria (id_inscripcion, id_materia, lapso_1, lapso_2, lapso_3, definitiva, tipo_evaluacion, mes, anio) SELECT i.id, m.id, 18, 15, 16, 16, 'F', '07', '2026' FROM inscripciones i JOIN periodos_escolares p ON p.id = i.id_periodo AND p.nombre = '2025-2026' JOIN estudiantes e ON e.id = i.id_estudiante AND e.cedula = 'V-30101010' JOIN grados_anios g ON g.nombre = '4.º Año' JOIN materias m ON m.id_grado_anio = g.id AND m.nombre = 'Química';
 INSERT IGNORE INTO calificaciones_secundaria (id_inscripcion, id_materia, lapso_1, lapso_2, lapso_3, definitiva, tipo_evaluacion, mes, anio) SELECT i.id, m.id, 15, 16, 17, 16, 'F', '07', '2026' FROM inscripciones i JOIN periodos_escolares p ON p.id = i.id_periodo AND p.nombre = '2025-2026' JOIN estudiantes e ON e.id = i.id_estudiante AND e.cedula = 'V-30101010' JOIN grados_anios g ON g.nombre = '4.º Año' JOIN materias m ON m.id_grado_anio = g.id AND m.nombre = 'Biología';
 
+-- ============================================================================
+-- 11. Asignaciones iniciales de docentes por materia y titulares en 2026-2027
+-- ============================================================================
+UPDATE secciones s
+JOIN periodos_escolares p ON p.id = s.id_periodo AND p.nombre = '2026-2027'
+JOIN grados_anios g ON g.id = s.id_grado_anio
+JOIN niveles_educativos n ON n.id = g.id_nivel AND n.tipo_escala = 'literal'
+JOIN docentes d ON d.cedula = CASE WHEN s.nombre = 'A' THEN 'V-15910776' ELSE 'V-16750887' END
+SET s.id_docente_titular_guia = d.id
+WHERE s.activo = TRUE AND s.id_docente_titular_guia IS NULL;
+
+INSERT IGNORE INTO asignaciones_docentes (id_periodo, id_seccion, id_materia, id_docente)
+SELECT p.id, s.id, m.id, d.id
+FROM secciones s
+JOIN periodos_escolares p ON p.id = s.id_periodo AND p.nombre = '2026-2027'
+JOIN grados_anios g ON g.id = s.id_grado_anio
+JOIN niveles_educativos n ON n.id = g.id_nivel AND n.tipo_escala = 'numerica'
+JOIN materias m ON m.id_grado_anio = g.id AND m.activo = TRUE
+JOIN docentes d ON d.cedula = CASE m.nombre
+    WHEN 'Matemáticas' THEN 'V-14250110'
+    WHEN 'Castellano' THEN 'V-15340221'
+    WHEN 'Inglés' THEN 'V-16480332'
+    WHEN 'Física' THEN 'V-13890443'
+    WHEN 'Química' THEN 'V-13890443'
+    WHEN 'Biología' THEN 'V-17120554'
+    WHEN 'Educación Física' THEN 'V-18230665'
+    ELSE NULL
+END
+WHERE s.activo = TRUE;
+
 SET FOREIGN_KEY_CHECKS = 1;

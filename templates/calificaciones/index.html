@@ -623,56 +623,83 @@
 
     {% if usuario_actual.rol == 'admin' and not solo_lectura %}
     <div id="modal-bloque-seccion" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true">
-      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-md w-full shadow-xl overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-          <h3 id="titulo-modal-bloque-sec" class="font-bold text-base">Agregar Bloque de Horario</h3>
-          <button type="button" onclick="cerrarModal('modal-bloque-seccion')" class="opacity-75 hover:opacity-100 text-sm font-bold">✕</button>
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-lg w-full shadow-xl overflow-hidden">
+        <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
+          <div>
+            <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">{{ seccion_actual.grado_nombre }} "{{ seccion_actual.nombre }}"</div>
+            <h3 id="titulo-modal-bloque-sec" class="font-bold text-base text-white mt-0.5">Agregar Bloque de Horario</h3>
+          </div>
+          <button type="button" onclick="cerrarModal('modal-bloque-seccion')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
         </div>
         <form id="form-bloque-seccion" method="POST" action="{{ url_for('horarios.crear') }}" class="form-bloque-seccion" data-crear-url="{{ url_for('horarios.crear') }}" data-guia="{{ seccion_actual.id_docente_titular_guia or '' }}" data-asignaciones='{{ mapa_asignaciones | tojson }}'>
           <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-          <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
-          <div class="p-6 space-y-4">
+          <input type="hidden" id="bs-id-seccion" name="id_seccion" value="{{ seccion_actual.id }}">
+          <input type="hidden" id="bs-excluir-id" value="">
+          <div class="p-6 max-h-[72vh] overflow-y-auto space-y-3 text-xs">
             <div>
-              <label class="block text-xs font-semibold mb-1">Día de la Semana *</label>
-              <select id="bs-dia" name="dia_semana" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-                {% for dn, dnom in dias.items() %}<option value="{{ dn }}">{{ dnom }}</option>{% endfor %}
-              </select>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-semibold mb-1">Inicio *</label>
-                <input id="bs-hi" type="time" name="hora_inicio" required value="07:00" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold mb-1">Fin *</label>
-                <input id="bs-hf" type="time" name="hora_fin" required value="08:30" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-              </div>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1">Materia</label>
-              <select id="bs-materia" name="id_materia" onchange="autoSeleccionarDocenteSeccion(this)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="bs-materia" class="block text-xs font-semibold mb-1">Materia</label>
+              <select id="bs-materia" name="id_materia" onchange="autoSeleccionarDocenteSeccion(this)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <option value="">-- Bloque general / Guía --</option>
-                {% for m in materias_grado %}<option value="{{ m.id }}">{{ m.nombre }}</option>{% endfor %}
+                {% for m in materias_grado %}<option value="{{ m.id }}">{{ m.nombre }}{% if mapa_asignaciones.get(m.id|string) %} ✓{% else %} (sin docente){% endif %}</option>{% endfor %}
               </select>
             </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1">Descripción (si es bloque general)</label>
-              <input id="bs-desc" type="text" name="descripcion_bloque" placeholder="Ej. Acto Cívico / Orientación" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1">Docente *</label>
-              <select id="bs-docente" name="id_docente" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
-                {% for d in docentes %}<option value="{{ d.id }}" {{ 'selected' if d.id == seccion_actual.id_docente_titular_guia }}>{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <label for="bs-docente" class="block text-xs font-semibold">Docente *</label>
+                <span id="bs-asig-badge" class="hidden px-2 py-0.5 rounded-full text-xs font-semibold"></span>
+              </div>
+              <select id="bs-docente" name="id_docente" required onchange="onCambioDocenteSeccion()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                {% for d in docentes %}<option value="{{ d.id }}" {{ 'selected' if d.id == seccion_actual.id_docente_titular_guia }}>{{ d.apellidos }} {{ d.nombres }}{% if d.especialidad %} — {{ d.especialidad }}{% endif %}</option>{% endfor %}
               </select>
+              <div id="bs-doc-card" class="hidden px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs flex flex-wrap items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div id="bs-doc-nombre" class="font-bold text-black dark:text-white truncate"></div>
+                  <div id="bs-doc-meta" class="opacity-75 truncate"></div>
+                </div>
+                <span id="bs-doc-carga" class="tabular-nums px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold shrink-0"></span>
+              </div>
+              <label id="bs-guardar-asig-wrap" class="hidden flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 font-medium">
+                <input id="bs-guardar-asig" type="checkbox" name="guardar_asignacion" value="1">
+                <span>Guardar también como docente asignado de esta materia en esta sección</span>
+              </label>
             </div>
-            <div>
-              <label class="block text-xs font-semibold mb-1">Aula / Salón (opcional)</label>
-              <input id="bs-aula" type="text" name="aula" placeholder="Ej. Salón 4" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label for="bs-dia" class="block text-xs font-semibold mb-1">Día *</label>
+                <select id="bs-dia" name="dia_semana" required onchange="programarDispSeccion()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  {% for dn, dnom in dias.items() %}<option value="{{ dn }}">{{ dnom }}</option>{% endfor %}
+                </select>
+              </div>
+              <div>
+                <label for="bs-hi" class="block text-xs font-semibold mb-1">Inicio *</label>
+                <input id="bs-hi" type="time" name="hora_inicio" required value="07:00" oninput="programarDispSeccion()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              </div>
+              <div>
+                <label for="bs-hf" class="block text-xs font-semibold mb-1">Fin *</label>
+                <input id="bs-hf" type="time" name="hora_fin" required value="08:30" oninput="programarDispSeccion()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="bs-aula" class="block text-xs font-semibold mb-1">Aula / Salón (estricto)</label>
+                <input id="bs-aula" type="text" name="aula" placeholder="Ej. Salón 4" oninput="programarDispSeccion()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              </div>
+              <div>
+                <label for="bs-desc" class="block text-xs font-semibold mb-1">Descripción (opcional)</label>
+                <input id="bs-desc" type="text" name="descripcion_bloque" placeholder="Ej. Acto Cívico" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              </div>
+            </div>
+            <div id="bs-disp-estado" class="hidden px-3 py-2.5 rounded-lg border text-xs font-semibold"></div>
+            <div id="bs-disp-agenda" class="hidden rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3 space-y-2 text-xs">
+              <div id="bs-agenda-doc"></div>
+              <div id="bs-agenda-sec"></div>
             </div>
           </div>
           <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
             <button type="button" onclick="cerrarModal('modal-bloque-seccion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
-            <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Bloque</button>
+            <button type="submit" id="bs-btn-guardar" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Bloque</button>
           </div>
         </form>
       </div>
@@ -1036,6 +1063,47 @@
       el.textContent = lits.length + ' alumnos · ' + cargados + ' con definitiva';
     }
   }
+  let _timerDispSec = null;
+
+  function _escSecHor(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _actualizarAvisoAsignacionSec() {
+    const form = document.getElementById('form-bloque-seccion');
+    const matSel = document.getElementById('bs-materia');
+    const docSel = document.getElementById('bs-docente');
+    const badge = document.getElementById('bs-asig-badge');
+    const wrap = document.getElementById('bs-guardar-asig-wrap');
+    const chk = document.getElementById('bs-guardar-asig');
+    if (!form || !matSel || !docSel) return;
+    let mapa = {};
+    try { mapa = JSON.parse(form.dataset.asignaciones || '{}'); } catch (_) {}
+    const mid = matSel.value;
+    const asigDoc = mid && mapa[mid] ? String(mapa[mid]) : '';
+    if (!mid) {
+      if (badge) badge.classList.add('hidden');
+      if (wrap) wrap.classList.add('hidden');
+      if (chk) chk.checked = false;
+      return;
+    }
+    if (asigDoc && docSel.value === asigDoc) {
+      if (badge) {
+        badge.textContent = 'Asignado a esta materia';
+        badge.className = 'px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900';
+      }
+      if (wrap) wrap.classList.add('hidden');
+      if (chk) chk.checked = false;
+    } else {
+      if (badge) {
+        badge.textContent = asigDoc ? 'Docente distinto al asignado' : 'Materia sin docente asignado';
+        badge.className = 'px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-black dark:text-white border border-slate-300 dark:border-slate-700';
+      }
+      if (wrap) wrap.classList.remove('hidden');
+      if (chk) chk.checked = !asigDoc;
+    }
+  }
+
   function autoSeleccionarDocenteSeccion(selMateria) {
     const form = selMateria && selMateria.closest('form');
     if (!form) return;
@@ -1048,6 +1116,94 @@
     if (targetDoc) {
       docSel.value = targetDoc;
     }
+    _actualizarAvisoAsignacionSec();
+    programarDispSeccion(true);
+  }
+
+  function onCambioDocenteSeccion() {
+    _actualizarAvisoAsignacionSec();
+    programarDispSeccion(true);
+  }
+
+  function programarDispSeccion(inmediato) {
+    clearTimeout(_timerDispSec);
+    _timerDispSec = setTimeout(verificarDispSeccion, inmediato ? 10 : 180);
+  }
+
+  async function verificarDispSeccion() {
+    const idSec = (document.getElementById('bs-id-seccion') || {}).value;
+    const idDoc = (document.getElementById('bs-docente') || {}).value;
+    const dia = (document.getElementById('bs-dia') || {}).value;
+    const hi = (document.getElementById('bs-hi') || {}).value;
+    const hf = (document.getElementById('bs-hf') || {}).value;
+    const aula = (document.getElementById('bs-aula') || {}).value || '';
+    const excl = (document.getElementById('bs-excluir-id') || {}).value || '';
+    const btnGuardar = document.getElementById('bs-btn-guardar');
+    const boxEst = document.getElementById('bs-disp-estado');
+    const boxAg = document.getElementById('bs-disp-agenda');
+    const docCard = document.getElementById('bs-doc-card');
+    if (!idSec || !idDoc || !dia) return;
+
+    const params = new URLSearchParams({
+      id_seccion: idSec, id_docente: idDoc, dia_semana: dia,
+      hora_inicio: hi || '', hora_fin: hf || '', aula: aula,
+    });
+    if (excl) params.set('excluir_id', excl);
+
+    try {
+      const res = await fetch('/horarios/api/disponibilidad?' + params.toString());
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.ok) return;
+
+      if (data.docente && docCard) {
+        const d = data.docente;
+        document.getElementById('bs-doc-nombre').textContent = `${d.apellidos} ${d.nombres} (${d.cedula})`;
+        document.getElementById('bs-doc-meta').textContent = `${d.categoria}${d.especialidad ? ' · ' + d.especialidad : ''}${d.telefono ? ' · ' + d.telefono : ''}`;
+        document.getElementById('bs-doc-carga').textContent = `${d.bloques_semana} bloq. (${d.horas_semana} h/sem)`;
+        docCard.classList.remove('hidden');
+      } else if (docCard) {
+        docCard.classList.add('hidden');
+      }
+
+      if (boxEst) {
+        if (data.conflictos && data.conflictos.length > 0) {
+          boxEst.className = 'px-3 py-2.5 rounded-lg border text-xs bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 space-y-1';
+          boxEst.innerHTML = '<div class="font-bold">Choque detectado (bloqueado):</div>' +
+            data.conflictos.map(c => `<div>• ${_escSecHor(c)}</div>`).join('');
+          if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.classList.add('opacity-50'); }
+        } else {
+          boxEst.className = 'px-3 py-2 rounded-lg border text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300';
+          boxEst.textContent = `Horario disponible el ${data.dia_nombre} — sin choques de sección, docente ni aula.`;
+          if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.classList.remove('opacity-50'); }
+        }
+        boxEst.classList.remove('hidden');
+      }
+
+      if (boxAg) {
+        const bDoc = (data.bloques_docente_dia || []).filter(b => !b.es_misma_seccion);
+        const bSec = data.bloques_seccion_dia || [];
+        const elDoc = document.getElementById('bs-agenda-doc');
+        const elSec = document.getElementById('bs-agenda-sec');
+        if (elDoc) {
+          elDoc.innerHTML = `<div class="font-bold text-black dark:text-white">Otras clases del docente el ${_escSecHor(data.dia_nombre)}:</div>` +
+            (bDoc.length
+              ? '<div class="mt-1 flex flex-wrap gap-1.5">' + bDoc.map(b =>
+                  `<span class="tabular-nums px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">${_escSecHor(b.hi)}-${_escSecHor(b.hf)} · ${_escSecHor(b.grado_nombre)} "${_escSecHor(b.seccion_nombre)}"${b.aula ? ' (' + _escSecHor(b.aula) + ')' : ''}</span>`
+                ).join('') + '</div>'
+              : '<div class="opacity-70">Libre todo el día en otras secciones.</div>');
+        }
+        if (elSec) {
+          elSec.innerHTML = `<div class="font-bold text-black dark:text-white">Bloques ocupados en esta sección el ${_escSecHor(data.dia_nombre)}:</div>` +
+            (bSec.length
+              ? '<div class="mt-1 flex flex-wrap gap-1.5">' + bSec.map(b =>
+                  `<span class="tabular-nums px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700">${_escSecHor(b.hi)}-${_escSecHor(b.hf)} · ${_escSecHor(b.materia_nombre)}${b.aula ? ' (' + _escSecHor(b.aula) + ')' : ''}</span>`
+                ).join('') + '</div>'
+              : '<div class="opacity-70">Sin bloques cargados ese día en esta sección.</div>');
+        }
+        boxAg.classList.remove('hidden');
+      }
+    } catch (_) {}
   }
 
   function abrirModalBloqueSeccion(btn, diaDefault) {
@@ -1056,6 +1212,7 @@
     if (!form) return;
     if (btn && btn.dataset && btn.dataset.id) {
       form.action = '/horarios/editar/' + btn.dataset.id;
+      document.getElementById('bs-excluir-id').value = btn.dataset.id;
       if (titulo) titulo.textContent = 'Editar Bloque de Horario';
       document.getElementById('bs-dia').value = btn.dataset.dia || '1';
       document.getElementById('bs-hi').value = btn.dataset.hi || '07:00';
@@ -1064,8 +1221,10 @@
       document.getElementById('bs-desc').value = btn.dataset.desc || '';
       document.getElementById('bs-docente').value = btn.dataset.docente || '';
       document.getElementById('bs-aula').value = btn.dataset.aula || '';
+      _actualizarAvisoAsignacionSec();
     } else {
       form.action = form.dataset.crearUrl || '/horarios/crear';
+      document.getElementById('bs-excluir-id').value = '';
       if (titulo) titulo.textContent = 'Agregar Bloque de Horario';
       document.getElementById('bs-dia').value = diaDefault || '1';
       document.getElementById('bs-hi').value = '07:00';
@@ -1076,6 +1235,7 @@
       autoSeleccionarDocenteSeccion(document.getElementById('bs-materia'));
     }
     abrirModal('modal-bloque-seccion');
+    programarDispSeccion(true);
   }
 
   document.addEventListener('submit', async function(e) {

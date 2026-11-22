@@ -11,6 +11,7 @@ from services.auth_service import admin_required, login_required, obtener_usuari
 from services.horario_service import (
     DIAS_SEMANA,
     actualizar_bloque_horario,
+    consultar_disponibilidad_horario,
     eliminar_bloque_horario,
     obtener_horario_docente,
     obtener_horario_seccion,
@@ -111,6 +112,25 @@ def index():
     )
 
 
+@horarios_bp.route("/api/disponibilidad", methods=["GET"])
+@admin_required
+def api_disponibilidad():
+    periodo = obtener_periodo_activo()
+    if not periodo:
+        return jsonify({"ok": False, "mensaje": "No hay período escolar activo."}), 400
+    data = consultar_disponibilidad_horario(
+        periodo["id"],
+        id_seccion=request.args.get("id_seccion", type=int) or 0,
+        id_docente=request.args.get("id_docente", type=int) or 0,
+        dia_semana=request.args.get("dia_semana", type=int) or 1,
+        hora_inicio=request.args.get("hora_inicio", "").strip(),
+        hora_fin=request.args.get("hora_fin", "").strip(),
+        aula=request.args.get("aula", "").strip(),
+        excluir_id=request.args.get("excluir_id", type=int),
+    )
+    return jsonify({"ok": True, **data})
+
+
 @horarios_bp.route("/crear", methods=["POST"])
 @admin_required
 def crear():
@@ -138,6 +158,7 @@ def crear():
             id_materia=int(id_mat) if id_mat else None,
             aula=request.form.get("aula", ""),
             descripcion_bloque=request.form.get("descripcion_bloque", ""),
+            guardar_asignacion=request.form.get("guardar_asignacion") == "1",
         )
         msg = "Bloque horario agregado sin conflictos."
         if es_fetch:
@@ -178,6 +199,7 @@ def editar(hid: int):
             id_materia=int(id_mat) if id_mat else None,
             aula=request.form.get("aula", ""),
             descripcion_bloque=request.form.get("descripcion_bloque", ""),
+            guardar_asignacion=request.form.get("guardar_asignacion") == "1",
         )
         msg = "Bloque horario actualizado sin conflictos."
         if es_fetch:

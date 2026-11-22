@@ -29,7 +29,7 @@ from services.estudiante_service import (
     validar_telefono_ve,
     validar_texto_persona,
 )
-from services.horario_service import registrar_bloque_horario
+from services.horario_service import consultar_disponibilidad_horario, registrar_bloque_horario
 from services.pdf_service import generar_certificado_historial_pdf
 
 
@@ -197,6 +197,18 @@ def test_horario_anti_choques():
     # Choque de docente en otra seccion a la misma hora
     with pytest.raises(ValueError, match="docente ya tiene clase"):
         registrar_bloque_horario(periodo["id"], id_sec2, id_doc, 1, "07:30", "08:30", id_mat, "Aula 2")
+
+    # Choque estricto de aula con otro docente en otra seccion
+    d2_ex = ejecutar_consulta("SELECT id FROM docentes WHERE cedula='V-99900022'", uno=True)
+    id_doc2 = d2_ex["id"] if d2_ex else crear_docente("V-99900022", "Laura", "AulaTest", "04140000001", "Inglés")
+    with pytest.raises(ValueError, match="Choque de aula"):
+        registrar_bloque_horario(periodo["id"], id_sec2, id_doc2, 1, "07:30", "08:30", id_mat, "Aula 1")
+
+    # Consulta en vivo de disponibilidad reporta conflictos antes de guardar
+    disp = consultar_disponibilidad_horario(periodo["id"], id_sec2, id_doc, 1, "07:30", "08:30", "Aula 1")
+    assert disp["disponible"] is False
+    assert len(disp["conflictos"]) >= 2
+    assert disp["docente"]["bloques_semana"] >= 1
 
 
 def test_inscripcion_y_reporte_pdf():

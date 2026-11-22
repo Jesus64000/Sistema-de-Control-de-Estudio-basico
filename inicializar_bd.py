@@ -259,6 +259,54 @@ def inicializar():
                     doc,
                 )
 
+            # Asignaciones iniciales en el periodo activo (cada docente semilla a sus materias correspondientes)
+            if per_activo:
+                cur.execute("SELECT id, cedula FROM docentes")
+                docs_por_ci = {r["cedula"]: r["id"] for r in cur.fetchall()}
+                mapa_materia_docente = {
+                    "Matemáticas": docs_por_ci.get("V-14250110"),
+                    "Castellano": docs_por_ci.get("V-15340221"),
+                    "Inglés": docs_por_ci.get("V-16480332"),
+                    "Física": docs_por_ci.get("V-13890443"),
+                    "Química": docs_por_ci.get("V-13890443"),
+                    "Biología": docs_por_ci.get("V-17120554"),
+                    "Educación Física": docs_por_ci.get("V-18230665"),
+                }
+                cur.execute(
+                    "SELECT s.id AS id_seccion, s.nombre AS sec_nombre, g.id AS id_grado, n.tipo_escala "
+                    "FROM secciones s "
+                    "JOIN grados_anios g ON g.id = s.id_grado_anio "
+                    "JOIN niveles_educativos n ON n.id = g.id_nivel "
+                    "WHERE s.id_periodo = %s AND s.activo = TRUE",
+                    (pid_activo,),
+                )
+                for sec_row in cur.fetchall():
+                    if sec_row["tipo_escala"] == "literal":
+                        titular = (
+                            docs_por_ci.get("V-15910776")
+                            if sec_row["sec_nombre"] == "A"
+                            else docs_por_ci.get("V-16750887")
+                        )
+                        if titular:
+                            cur.execute(
+                                "UPDATE secciones SET id_docente_titular_guia = %s "
+                                "WHERE id = %s AND id_docente_titular_guia IS NULL",
+                                (titular, sec_row["id_seccion"]),
+                            )
+                    else:
+                        cur.execute(
+                            "SELECT id, nombre FROM materias WHERE id_grado_anio = %s AND activo = TRUE",
+                            (sec_row["id_grado"],),
+                        )
+                        for m_row in cur.fetchall():
+                            id_d = mapa_materia_docente.get(m_row["nombre"])
+                            if id_d:
+                                cur.execute(
+                                    "INSERT IGNORE INTO asignaciones_docentes (id_periodo, id_seccion, id_materia, id_docente) "
+                                    "VALUES (%s, %s, %s, %s)",
+                                    (pid_activo, sec_row["id_seccion"], m_row["id"], id_d),
+                                )
+
             # 10 estudiantes semilla con representantes, SIN grado ni seccion asignada (para probar inscripcion/flujo)
             estudiantes_semilla = [
                 (

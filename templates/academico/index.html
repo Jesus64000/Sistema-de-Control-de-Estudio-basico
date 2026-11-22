@@ -200,7 +200,14 @@
                   data-direccion="{{ d.direccion or '' }}"
                   class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
                 >Editar</button>
-                <a href="{{ url_for('academico.docente_detalle', did=d.id) }}" class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 text-xs font-semibold">Ver Carga</a>
+                {% if not solo_lectura %}
+                <button
+                  type="button"
+                  onclick="abrirModalMateriasDocente({{ d.id }})"
+                  class="px-2.5 py-1 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold"
+                >Materias</button>
+                {% endif %}
+                <a href="{{ url_for('academico.docente_detalle', did=d.id) }}" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Ver Carga</a>
               </td>
             </tr>
             {% else %}
@@ -807,5 +814,109 @@
   });
 
   mostrarTab(localStorage.getItem('academico_tab') || 'secciones');
+
+  function _escAcad(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function actualizarContadorMateriasDocente() {
+    const n = document.querySelectorAll('#doc-mat-lista input[name="asig_par"]:checked').length;
+    const el = document.getElementById('doc-mat-contador');
+    if (el) el.textContent = n + (n === 1 ? ' materia asignada' : ' materias asignadas');
+  }
+
+  function filtrarMateriasDocenteModal() {
+    const q = (document.getElementById('doc-mat-filtro').value || '').trim().toLowerCase();
+    document.querySelectorAll('#doc-mat-lista .doc-mat-sec').forEach(secEl => {
+      let visibles = 0;
+      secEl.querySelectorAll('.doc-mat-item').forEach(it => {
+        const ok = !q || it.dataset.search.includes(q);
+        it.classList.toggle('hidden', !ok);
+        if (ok) visibles++;
+      });
+      secEl.classList.toggle('hidden', visibles === 0);
+    });
+  }
+
+  async function abrirModalMateriasDocente(did) {
+    const form = document.getElementById('form-docente-materias');
+    const lista = document.getElementById('doc-mat-lista');
+    const tit = document.getElementById('doc-mat-titulo');
+    const sub = document.getElementById('doc-mat-subtitulo');
+    if (!form || !lista) return;
+    form.action = '/academico/docentes/' + did + '/asignaciones';
+    tit.textContent = 'Cargando...';
+    sub.textContent = 'Asignación de Materias por Sección';
+    lista.innerHTML = '<p class="px-4 py-6 text-center text-xs opacity-75">Consultando secciones y materias...</p>';
+    const fil = document.getElementById('doc-mat-filtro');
+    if (fil) fil.value = '';
+    abrirModal('modal-docente-materias');
+    try {
+      const res = await fetch('/academico/api/docentes/' + did + '/carga');
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        lista.innerHTML = `<p class="px-4 py-6 text-center text-xs text-red-700 dark:text-red-400">${_escAcad(data.mensaje || 'Error al cargar.')}</p>`;
+        return;
+      }
+      const d = data.docente;
+      tit.textContent = `${d.apellidos} ${d.nombres}`;
+      sub.textContent = `Período ${data.periodo_nombre} · ${d.categoria}${d.especialidad ? ' · ' + d.especialidad : ''}`;
+      const secs = data.secciones || [];
+      if (secs.length === 0) {
+        lista.innerHTML = '<p class="px-4 py-6 text-center text-xs opacity-75">No hay secciones con materias activas en el período activo.</p>';
+        actualizarContadorMateriasDocente();
+        return;
+      }
+      lista.innerHTML = secs.map(s => `
+        <div class="doc-mat-sec border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+          <div class="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-bold flex items-center justify-between">
+            <span>${_escAcad(s.label)}</span>
+            <span class="opacity-70 font-normal">${_escAcad(s.nivel_nombre)}</span>
+          </div>
+          <div class="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            ${s.materias.map(m => `
+              <label class="doc-mat-item flex items-start gap-2 p-2 rounded-lg border ${m.asignada_a_este ? 'border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/60' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'}" data-search="${_escAcad((s.label + ' ' + m.nombre + ' ' + m.codigo).toLowerCase())}">
+                <input type="checkbox" name="asig_par" value="${s.id_seccion}:${m.id_materia}" ${m.asignada_a_este ? 'checked' : ''} onchange="actualizarContadorMateriasDocente()" class="mt-0.5">
+                <div class="min-w-0">
+                  <div class="font-semibold text-black dark:text-white">${_escAcad(m.nombre)}${m.codigo ? ' <span class="opacity-70">(' + _escAcad(m.codigo) + ')</span>' : ''}</div>
+                  ${m.otro_docente ? `<div class="opacity-70">Actual: ${_escAcad(m.otro_docente)}</div>` : '<div class="opacity-70">Sin asignar</div>'}
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+      actualizarContadorMateriasDocente();
+    } catch (_) {
+      lista.innerHTML = '<p class="px-4 py-6 text-center text-xs text-red-700 dark:text-red-400">Error de conexión al consultar materias.</p>';
+    }
+  }
 </script>
+
+<!-- Modal Asignar Materias y Secciones a un Docente -->
+<div id="modal-docente-materias" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-2xl w-full shadow-xl overflow-hidden">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div id="doc-mat-subtitulo" class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Asignación de Materias</div>
+        <h3 id="doc-mat-titulo" class="text-base font-bold text-white mt-0.5 truncate">Docente</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-docente-materias')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-docente-materias" method="POST" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <input id="doc-mat-filtro" type="text" oninput="filtrarMateriasDocenteModal()" placeholder="Filtrar por materia o año (ej. Matemáticas, 3.º Año)..." class="w-64 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+        <span id="doc-mat-contador" class="tabular-nums text-xs font-semibold text-blue-700 dark:text-blue-400">0 materias asignadas</span>
+      </div>
+      <div id="doc-mat-lista" class="p-6 max-h-[72vh] overflow-y-auto space-y-3"></div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-docente-materias')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Asignaciones</button>
+      </div>
+    </form>
+  </div>
+</div>
 {% endblock %}

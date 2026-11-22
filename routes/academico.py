@@ -15,6 +15,7 @@ from services.academico_service import (
     crear_materia,
     crear_periodo,
     crear_seccion,
+    guardar_asignaciones_docente_lote,
     listar_asignaciones_seccion,
     listar_bloques,
     listar_docentes,
@@ -25,6 +26,7 @@ from services.academico_service import (
     listar_periodos,
     listar_secciones,
     listar_secciones_con_resumen,
+    obtener_carga_editable_docente,
     obtener_periodo_activo,
     obtener_periodo_por_id,
     obtener_resumen_docente,
@@ -246,6 +248,34 @@ def docente_editar(did: int):
 def docente_toggle(did: int):
     toggle_docente(did)
     return _respuesta_academico(True, "Estado del docente actualizado.")
+
+
+@academico_bp.route("/api/docentes/<int:did>/carga", methods=["GET"])
+@admin_required
+def api_docente_carga(did: int):
+    periodo = obtener_periodo_activo()
+    if not periodo:
+        return jsonify({"ok": False, "mensaje": "No hay período escolar activo."}), 400
+    datos = obtener_carga_editable_docente(periodo["id"], did)
+    if not datos:
+        return jsonify({"ok": False, "mensaje": "Docente no encontrado."}), 404
+    return jsonify({"ok": True, "periodo_nombre": periodo["nombre"], **datos})
+
+
+@academico_bp.route("/docentes/<int:did>/asignaciones", methods=["POST"])
+@admin_required
+def docente_asignaciones(did: int):
+    periodo = obtener_periodo_activo()
+    if not periodo:
+        return _respuesta_academico(False, "No hay período escolar activo.")
+    try:
+        pares = request.form.getlist("asig_par")
+        res = guardar_asignaciones_docente_lote(periodo["id"], did, pares)
+        return _respuesta_academico(
+            True, f"Materias asignadas al docente actualizadas ({res['total']} en el período {periodo['nombre']})."
+        )
+    except Exception as err:
+        return _respuesta_academico(False, str(err))
 
 
 @academico_bp.route("/secciones/crear", methods=["POST"])

@@ -580,3 +580,96 @@ def guardar_asignaciones_seccion_lote(
         raise
     finally:
         conn.close()
+
+
+def obtener_carga_editable_docente(id_periodo: int, id_docente: int) -> dict:
+    """Retorna todas las secciones/materias del periodo indicando cuales estan asignadas al docente."""
+    docente = ejecutar_consulta(
+        "SELECT id, cedula, nombres, apellidos, especialidad, categoria FROM docentes WHERE id = %s",
+        (id_docente,),
+        uno=True,
+    )
+    if not docente:
+        return None
+    filas = ejecutar_consulta(
+        "SELECT s.id AS id_seccion, s.nombre AS seccion_nombre, s.turno, "
+        "g.id AS id_grado, g.nombre AS grado_nombre, g.orden AS grado_orden, "
+        "n.nombre AS nivel_nombre, n.orden AS nivel_orden, "
+        "m.id AS id_materia, m.nombre AS materia_nombre, m.codigo AS materia_codigo, "
+        "a.id_docente AS docente_asignado_id, "
+        "CONCAT(d.apellidos, ' ', d.nombres) AS docente_asignado_nombre "
+        "FROM secciones s "
+        "JOIN grados_anios g ON g.id = s.id_grado_anio "
+        "JOIN niveles_educativos n ON n.id = g.id_nivel "
+        "JOIN materias m ON m.id_grado_anio = g.id AND m.activo = TRUE "
+        "LEFT JOIN asignaciones_docentes a ON a.id_periodo = s.id_periodo AND a.id_seccion = s.id AND a.id_materia = m.id "
+        "LEFT JOIN docentes d ON d.id = a.id_docente "
+        "WHERE s.id_periodo = %s AND s.activo = TRUE "
+        "ORDER BY n.orden ASC, g.orden ASC, s.nombre ASC, m.nombre ASC",
+        (id_periodo,),
+    )
+    agrupado = {}
+    for f in filas:
+        sid = f["id_seccion"]
+        if sid not in agrupado:
+            agrupado[sid] = {
+                "id_seccion": sid,
+                "label": f'{f["grado_nombre"]} "{f["seccion_nombre"]}" ({f["turno"]})',
+                "nivel_nombre": f["nivel_nombre"],
+                "materias": [],
+            }
+        agrupado[sid]["materias"].append({
+            "id_materia": f["id_materia"],
+            "nombre": f["materia_nombre"],
+            "codigo": f["materia_codigo"] or "",
+            "asignada_a_este": f["docente_asignado_id"] == id_docente,
+            "otro_docente": (
+                f["docente_asignado_nombre"]
+                if f["docente_asignado_id"] and f["docente_asignado_id"] != id_docente
+                else ""
+            ),
+        })
+    return {"docente": docente, "secciones": list(agrupado.values())}
+
+
+def guardar_asignaciones_docente_lote(id_periodo: int, id_docente: int, pares: list) -> dict:
+    """Actualiza las materias/secciones asignadas a un docente en el periodo activo."""
+    verificar_periodo_editable(id_periodo)
+    limpios = set()
+    for p in pares or []:
+        if isinstance(p, str) and ":" in p:
+            a, b = p.split(":", 1)
+            if a.isdigit() and b.isdigit():
+                limpios.add((int(a), int(b)))
+        elif isinstance(p, (list, tuple)) and len(p) == 2:
+            limpios.add((int(p[0]), int(p[1])))
+
+    conn = obtener_conexion()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id_seccion, id_materia FROM asignaciones_docentes "
+                "WHERE id_periodo = %s AND id_docente = %s",
+                (id_periodo, id_docente),
+            )
+            actuales = {(r["id_seccion"], r["id_materia"]) for r in cur.fetchall()}
+
+            for sid, mid in actuales - limpios:
+                cur.execute(
+                    "DELETE FROM asignaciones_docentes "
+                    "WHERE id_periodo = %s AND id_seccion = %s AND id_materia = %s AND id_docente = %s",
+                    (id_periodo, sid, mid, id_docente),
+                )
+            for sid, mid in limpios:
+                cur.execute(
+                    "INSERT INTO asignaciones_docentes (id_periodo, id_seccion, id_materia, id_docente) "
+                    "VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE id_docente = VALUES(id_docente)",
+                    (id_periodo, sid, mid, id_docente),
+                )
+        conn.commit()
+        return {"total": len(limpios)}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
