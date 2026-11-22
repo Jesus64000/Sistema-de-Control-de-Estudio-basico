@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Asignación de Docentes{% endblock %}
+{% block header_title %}Docentes — {{ seccion.grado_nombre }} Sección "{{ seccion.nombre }}"{% endblock %}
+{% block content %}
+<div class="space-y-6">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <div class="text-sm font-bold">{{ seccion.nivel_nombre }} — {{ seccion.grado_nombre }} "{{ seccion.nombre }}"</div>
+      <div class="text-xs text-black dark:text-white mt-0.5">{{ 'Docente Titular' if seccion.tipo_escala == 'literal' else 'Profesor Guía' }}: {{ seccion.docente_guia_nombre or 'No asignado' }}</div>
+    </div>
+    <div class="flex gap-2">
+      {% if seccion.tipo_escala == 'literal' and seccion.id_docente_titular_guia %}
+      <form method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="accion" value="titular_primaria">
+        <button type="submit" class="px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Asignar Titular a Materias Regulares</button>
+      </form>
+      {% endif %}
+      <a href="{{ url_for('academico.index') }}" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Volver</a>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+      <h3 class="text-sm font-bold mb-3">Asignar Docente por Materia</h3>
+      <form method="POST" class="space-y-3">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Materia</label>
+          <select name="id_materia" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for m in materias %}
+            <option value="{{ m.id }}">{{ m.nombre }}{% if m.es_especial %} (Especial){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Docente</label>
+          <select name="id_docente" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for d in docentes %}
+            <option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Asignación</button>
+      </form>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+      <h3 class="text-sm font-bold mb-3">Asignaciones Actuales</h3>
+      <div class="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+        {% for a in asignaciones %}
+        <div class="py-2 flex justify-between">
+          <span class="font-medium">{{ a.materia_nombre }}</span>
+          <span class="text-black dark:text-white dark:text-white">{{ a.docente_nombre }}</span>
+        </div>
+        {% else %}
+        <p class="text-xs text-black dark:text-white">Sin asignaciones registradas.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

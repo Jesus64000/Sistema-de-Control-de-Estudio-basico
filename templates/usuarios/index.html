@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+{% block title %}Usuarios y Roles{% endblock %}
+{% block header_title %}Gestión de Usuarios y Roles{% endblock %}
+{% block content %}
+<style>
+  .usuarios-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  @media (min-width: 1024px) {
+    .usuarios-layout {
+      grid-template-columns: 240px minmax(0, 1fr);
+      align-items: start;
+    }
+    .usuarios-sidebar-sticky {
+      position: sticky;
+      top: 5.25rem;
+    }
+  }
+</style>
+
+<div id="usuarios-layout" class="usuarios-layout" style="transition:opacity 120ms ease;">
+  <!-- Sub-navegacion lateral -->
+  <aside class="usuarios-sidebar-sticky bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-3">
+    <div class="px-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+      <div class="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Control de Acceso</div>
+      <div class="text-xs opacity-75 mt-0.5">{{ usuarios|length }} cuentas registradas</div>
+    </div>
+
+    <nav class="space-y-1 text-xs font-semibold">
+      <button type="button" onclick="mostrarTabUsr('cuentas')" id="usr-btn-cuentas" class="usr-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-blue-700 text-white text-left">
+        <span>Cuentas de Usuario</span>
+        <span style="background:rgba(255,255,255,0.2)" class="px-2 py-0.5 rounded-full text-[11px]">{{ usuarios|length }}</span>
+      </button>
+      <button type="button" onclick="mostrarTabUsr('solicitudes')" id="usr-btn-solicitudes" class="usr-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>Solicitudes de Clave</span>
+        <span class="px-2 py-0.5 rounded-full text-[11px] {{ 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900' if solicitudes_pendientes else 'bg-slate-100 dark:bg-slate-800 text-black dark:text-white' }}">
+          {{ solicitudes_pendientes|length }}
+        </span>
+      </button>
+      <button type="button" onclick="mostrarTabUsr('permisos')" id="usr-btn-permisos" class="usr-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>Roles y Permisos</span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- Contenido principal -->
+  <div class="min-w-0 space-y-5">
+    <!-- Pestana Cuentas -->
+    <section id="usr-tab-cuentas" class="usr-tab-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold">Usuarios del Sistema</h2>
+          <p class="text-xs opacity-75">Administre cuentas, roles, vínculos docentes y restablecimientos de acceso.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="filtro-usr-rol" onchange="filtrarUsuarios()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+            <option value="">Todos los roles</option>
+            <option value="admin">Administrador</option>
+            <option value="operador">Operador</option>
+            <option value="docente">Docente</option>
+          </select>
+          <select id="filtro-usr-est" onchange="filtrarUsuarios()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+            <option value="">Todos los estados</option>
+            <option value="1">Activos</option>
+            <option value="0">Suspendidos</option>
+          </select>
+          <input id="filtro-usr-txt" type="text" oninput="filtrarUsuarios()" placeholder="Buscar usuario o nombre..." class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+          <button type="button" onclick="abrirModal('modal-nuevo-usuario')" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">
+            + Nuevo Usuario
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-3">Nombre</th>
+              <th class="px-4 py-3">Usuario</th>
+              <th class="px-4 py-3">Rol / Vínculo</th>
+              <th class="px-4 py-3">Estado</th>
+              <th class="px-4 py-3">Seguridad</th>
+              <th class="px-4 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for u in usuarios %}
+            <tr
+              class="fila-usuario hover:bg-slate-50 dark:hover:bg-slate-800/40"
+              data-rol="{{ u.rol }}"
+              data-activo="{{ '1' if u.activo else '0' }}"
+              data-search="{{ (u.nombre ~ ' ' ~ u.username ~ ' ' ~ (u.correo or '') ~ ' ' ~ (u.docente_nombre or ''))|lower }}"
+            >
+              <td class="px-4 py-3 font-medium">
+                <div>{{ u.nombre }}</div>
+                {% if u.correo %}
+                <div class="text-xs text-black dark:text-white opacity-70">{{ u.correo }}</div>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-black dark:text-white font-medium">{{ u.username }}</td>
+              <td class="px-4 py-3">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase {{ 'bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800' if u.rol == 'admin' else 'bg-slate-100 text-black dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700' }}">
+                  {{ u.rol }}
+                </span>
+                {% if u.docente_nombre %}
+                <div class="text-xs text-black dark:text-white opacity-75 mt-1">{{ u.docente_nombre }}</div>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900' if u.activo else 'bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900' }}">
+                  {{ 'Activo' if u.activo else 'Suspendido' }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                {% if u.debe_cambiar_password %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900">Clave temporal</span>
+                {% else %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-black dark:bg-slate-800 dark:text-white">Verificada</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-2">
+                  <button type="button" onclick="abrirEditarUsuario({{ u.id }}, '{{ u.nombre|e }}', '{{ u.rol }}', '{{ u.id_docente or '' }}', '{{ (u.correo_usuario or '')|e }}')" class="px-2.5 py-1 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Editar</button>
+                  <button type="button" onclick="abrirResetPassword({{ u.id }}, '{{ u.username|e }}')" class="px-2.5 py-1 text-xs rounded-lg bg-blue-700 hover:bg-blue-800 text-white">Clave</button>
+                  {% if u.id != usuario_actual.id %}
+                  <form method="POST" action="{{ url_for('usuarios.toggle_estado', uid=u.id) }}" class="form-usuarios-async" data-confirm="¿Desea {{ 'suspender' if u.activo else 'reactivar' }} la cuenta de {{ u.username|e }}?">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="px-2.5 py-1 text-xs rounded-lg border {{ 'border-red-300 text-red-700 dark:border-red-900 dark:text-red-400' if u.activo else 'border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400' }}">
+                      {{ 'Suspender' if u.activo else 'Reactivar' }}
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Pestana Solicitudes de Recuperacion -->
+    <section id="usr-tab-solicitudes" class="usr-tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h2 class="text-sm font-bold">Solicitudes de Recuperación de Acceso ({{ solicitudes_pendientes|length }})</h2>
+        <p class="text-xs opacity-75">Asigne una clave temporal para que el usuario pueda ingresar y definir su nueva contraseña.</p>
+      </div>
+      <div class="divide-y divide-slate-200 dark:divide-slate-800">
+        {% for s in solicitudes_pendientes %}
+        <div class="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+          <div class="text-xs">
+            <span class="font-bold text-black dark:text-white">{{ s.nombre }}</span>
+            <span class="text-black dark:text-white opacity-75">({{ s.username }} · {{ s.rol }})</span>
+            <div class="text-black dark:text-white opacity-75 mt-0.5">Correo: <b>{{ s.correo_solicitado }}</b></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="abrirResetPassword({{ s.id_usuario }}, '{{ s.username|e }}')" class="px-3 py-1.5 text-xs rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">
+              Restablecer Clave
+            </button>
+            <form method="POST" action="{{ url_for('usuarios.descartar_solicitud', sid=s.id) }}" class="form-usuarios-async" data-confirm="¿Descartar esta solicitud?">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800">
+                Descartar
+              </button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <p class="px-5 py-6 text-center text-xs opacity-75">No hay solicitudes de recuperación pendientes en este momento.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Pestana Matriz de Roles y Permisos -->
+    <section id="usr-tab-permisos" class="usr-tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
+        <h3 class="text-sm font-bold">Matriz de Roles y Permisos</h3>
+        <p class="text-xs opacity-75">Alcance de cada perfil dentro del sistema.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-2.5">Módulo / Capacidad</th>
+              <th class="px-4 py-2.5 text-center">Docente</th>
+              <th class="px-4 py-2.5 text-center">Operador</th>
+              <th class="px-4 py-2.5 text-center">Administrador</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            <tr><td class="px-4 py-2.5">Portal Inicio con Horario Semanal Propio</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td><td class="px-4 py-2.5 text-center">Panel General</td><td class="px-4 py-2.5 text-center">Panel General</td></tr>
+            <tr><td class="px-4 py-2.5">Gestión de Sección (Ver alumnos y cargar notas)</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Solo asignadas</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td></tr>
+            <tr><td class="px-4 py-2.5">Estudiantes, Representantes e Inscripciones</td><td class="px-4 py-2.5 text-center">Restringido</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td></tr>
+            <tr><td class="px-4 py-2.5">Asignar Docentes a Materias y Editar Horarios</td><td class="px-4 py-2.5 text-center">Restringido</td><td class="px-4 py-2.5 text-center">Restringido</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td></tr>
+            <tr><td class="px-4 py-2.5">Estructura Académica, Usuarios y Configuración</td><td class="px-4 py-2.5 text-center">Restringido</td><td class="px-4 py-2.5 text-center">Restringido</td><td class="px-4 py-2.5 text-center font-semibold text-blue-700 dark:text-blue-400">Permitido</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal Nuevo Usuario -->
+<div id="modal-nuevo-usuario" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Cuentas</div><h3 class="text-base font-bold text-white mt-0.5">Nuevo Usuario</h3></div>
+      <button type="button" onclick="cerrarModal('modal-nuevo-usuario')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form method="POST" action="{{ url_for('usuarios.crear') }}" class="form-usuarios-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <div><label class="block text-xs font-semibold mb-1">Nombre Completo *</label><input type="text" name="nombre" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Usuario *</label><input type="text" name="username" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Correo Electrónico (para recuperación)</label><input type="email" name="correo" placeholder="ejemplo@correo.com" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Contraseña Temporal (mín. 6) *</label><input type="password" name="password" required minlength="6" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Rol</label>
+          <select name="rol" id="new-u-rol" onchange="toggleDocenteSelect('new')" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <option value="operador">Operador / Secretaría</option>
+            <option value="docente">Docente</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div id="new-u-docente-wrap" class="hidden">
+          <label class="block text-xs font-semibold mb-1">Vincular Docente *</label>
+          <select name="id_docente" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <option value="">-- Seleccione Docente --</option>
+            {% for d in docentes %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }} ({{ d.cedula }})</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-nuevo-usuario')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Crear Usuario</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Editar Usuario y Rol -->
+<div id="modal-editar-usuario" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Permisos</div><h3 class="text-base font-bold text-white mt-0.5">Editar Usuario y Rol</h3></div>
+      <button type="button" onclick="cerrarModal('modal-editar-usuario')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-editar-usuario" method="POST" class="form-usuarios-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <div><label class="block text-xs font-semibold mb-1">Nombre Completo *</label><input type="text" id="edit-u-nombre" name="nombre" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Correo Electrónico (para recuperación)</label><input type="email" id="edit-u-correo" name="correo" placeholder="ejemplo@correo.com" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Rol</label>
+          <select id="edit-u-rol" name="rol" onchange="toggleDocenteSelect('edit')" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <option value="operador">Operador / Secretaría</option>
+            <option value="docente">Docente</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div id="edit-u-docente-wrap" class="hidden">
+          <label class="block text-xs font-semibold mb-1">Vincular Docente *</label>
+          <select id="edit-u-docente" name="id_docente" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <option value="">-- Seleccione Docente --</option>
+            {% for d in docentes %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }} ({{ d.cedula }})</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-editar-usuario')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Cambios</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Restablecer Clave -->
+<div id="modal-reset-clave" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Seguridad</div><h3 class="text-base font-bold text-white mt-0.5">Restablecer Contraseña</h3></div>
+      <button type="button" onclick="cerrarModal('modal-reset-clave')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-reset-clave" method="POST" class="form-usuarios-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <p class="text-xs text-black dark:text-white">Asignar clave temporal para <b id="reset-u-label"></b>:</p>
+        <input id="reset-u-pass" type="password" name="nueva_password" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-reset-clave')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Restablecer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function mostrarToastUsr(msg, tipo) {
+    let cont = document.getElementById('toast-container');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'toast-container';
+      cont.className = 'no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none';
+      document.body.appendChild(cont);
+    }
+    const item = document.createElement('div');
+    const esErr = tipo === 'error';
+    item.className = 'toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ' +
+      (esErr
+        ? 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100'
+        : 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white');
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Cerrar';
+    btn.className = 'text-xs font-bold opacity-80 hover:opacity-100 shrink-0';
+    btn.onclick = () => cerrarToast(item);
+    item.appendChild(span);
+    item.appendChild(btn);
+    cont.appendChild(item);
+    requestAnimationFrame(() => item.classList.add('is-visible'));
+    setTimeout(() => { if (item.parentElement) cerrarToast(item); }, 4000);
+  }
+
+  function mostrarTabUsr(nombre) {
+    document.querySelectorAll('.usr-tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.usr-tab-btn').forEach(b => {
+      b.classList.remove('bg-blue-700', 'text-white');
+      b.classList.add('text-black', 'dark:text-white');
+    });
+    const panel = document.getElementById('usr-tab-' + nombre);
+    const btn = document.getElementById('usr-btn-' + nombre);
+    if (!panel || !btn) return;
+    panel.classList.remove('hidden');
+    btn.classList.add('bg-blue-700', 'text-white');
+    btn.classList.remove('text-black', 'dark:text-white');
+    localStorage.setItem('usuarios_tab', nombre);
+  }
+
+  function filtrarUsuarios() {
+    const rol = (document.getElementById('filtro-usr-rol') || {}).value || '';
+    const est = (document.getElementById('filtro-usr-est') || {}).value || '';
+    const q = ((document.getElementById('filtro-usr-txt') || {}).value || '').trim().toLowerCase();
+    document.querySelectorAll('.fila-usuario').forEach(el => {
+      const okRol = !rol || el.dataset.rol === rol;
+      const okEst = !est || el.dataset.activo === est;
+      const okTxt = !q || el.dataset.search.includes(q);
+      el.classList.toggle('hidden', !(okRol && okEst && okTxt));
+    });
+  }
+
+  function toggleDocenteSelect(prefix) {
+    const rol = document.getElementById(prefix + '-u-rol').value;
+    document.getElementById(prefix + '-u-docente-wrap').classList.toggle('hidden', rol !== 'docente');
+  }
+
+  function abrirEditarUsuario(id, nombre, rol, idDocente, correo) {
+    document.getElementById('form-editar-usuario').action = '/usuarios/editar/' + id;
+    document.getElementById('edit-u-nombre').value = nombre;
+    document.getElementById('edit-u-correo').value = correo || '';
+    document.getElementById('edit-u-rol').value = rol;
+    document.getElementById('edit-u-docente').value = idDocente || '';
+    toggleDocenteSelect('edit');
+    abrirModal('modal-editar-usuario');
+  }
+
+  function abrirResetPassword(id, username) {
+    document.getElementById('form-reset-clave').action = '/usuarios/cambiar-password/' + id;
+    document.getElementById('reset-u-label').textContent = username;
+    document.getElementById('reset-u-pass').value = '';
+    abrirModal('modal-reset-clave');
+  }
+
+  async function recargarLayoutUsuarios() {
+    const layout = document.getElementById('usuarios-layout');
+    if (!layout) { window.location.reload(); return; }
+    const f = {
+      rol: (document.getElementById('filtro-usr-rol') || {}).value || '',
+      est: (document.getElementById('filtro-usr-est') || {}).value || '',
+      txt: (document.getElementById('filtro-usr-txt') || {}).value || ''
+    };
+    layout.style.opacity = '0.55';
+    try {
+      const resp = await fetch(window.location.href);
+      const html = await resp.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const nuevo = doc.getElementById('usuarios-layout');
+      if (!nuevo) { window.location.reload(); return; }
+      layout.innerHTML = nuevo.innerHTML;
+      ['#nav-usuarios-link', '#bandeja-notif-wrap'].forEach(sel => {
+        const cur = document.querySelector(sel);
+        const nxt = doc.querySelector(sel);
+        if (cur && nxt) cur.innerHTML = nxt.innerHTML;
+      });
+      if (document.getElementById('filtro-usr-rol')) document.getElementById('filtro-usr-rol').value = f.rol;
+      if (document.getElementById('filtro-usr-est')) document.getElementById('filtro-usr-est').value = f.est;
+      if (document.getElementById('filtro-usr-txt')) document.getElementById('filtro-usr-txt').value = f.txt;
+      mostrarTabUsr(localStorage.getItem('usuarios_tab') || 'cuentas');
+      filtrarUsuarios();
+    } finally {
+      layout.style.opacity = '1';
+    }
+  }
+
+  document.addEventListener('submit', async function(e) {
+    const form = e.target;
+    if (!form.classList || !form.classList.contains('form-usuarios-async')) return;
+    e.preventDefault();
+    if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+
+    try {
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: new FormData(form)
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        mostrarToastUsr(data.mensaje || 'No se pudo completar la operación.', 'error');
+        return;
+      }
+      const modal = form.closest('[id^="modal-"]');
+      if (modal) {
+        cerrarModal(modal.id);
+        form.reset();
+      }
+      mostrarToastUsr(data.mensaje || 'Cambios guardados.', 'ok');
+      await recargarLayoutUsuarios();
+    } catch (_) {
+      mostrarToastUsr('Error de conexión al guardar.', 'error');
+    }
+  });
+
+  mostrarTabUsr(localStorage.getItem('usuarios_tab') || 'cuentas');
+</script>
+{% endblock %}

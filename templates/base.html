@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Control de Estudio{% endblock %} — {{ cfg_global.get('nombre_corto', 'E. B. N. Los Laureles') }}</title>
+  <!-- Aplica el tema oscuro antes de pintar la pagina para evitar parpadeos -->
+  <script>
+    (function() {
+      if (localStorage.getItem('tema') === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <!-- Hoja de estilos estatica precompilada (carga instantanea sin compilar JS) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <style>
+    .header-sticky { position: sticky; top: 0; z-index: 20; }
+    @media (min-width: 1024px) {
+      .sidebar-sticky { position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
+    }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #ffffff !important; color: #000000 !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-black dark:bg-slate-950 dark:text-white min-h-screen antialiased">
+  <div class="flex min-h-screen">
+    {% if not (request.args.get('embed') or request.args.get('parcial')) %}
+    <!-- Fondo oscuro para cerrar el menu lateral al tocar fuera en moviles -->
+    <div id="sidebar-backdrop" onclick="alternarSidebar(false)" class="no-print hidden fixed inset-0 z-30 bg-slate-950/50 lg:hidden"></div>
+
+    <!-- Barra lateral de navegacion (fija en escritorio, deslizable en moviles) -->
+    <aside id="sidebar" class="no-print sidebar-sticky fixed inset-y-0 left-0 z-40 w-64 transform -translate-x-full lg:translate-x-0 lg:static lg:inset-0 transition-transform duration-200 bg-institucional-950 dark:bg-slate-900 text-white flex flex-col border-r border-institucional-900 dark:border-slate-800">
+      <!-- Identidad del plantel -->
+      <div class="px-5 py-4 border-b border-white/10">
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Control de Estudio</div>
+        <div class="text-sm font-bold text-white mt-0.5 truncate">{{ cfg_global.get('nombre_corto', 'E. B. N. "Los Laureles"') }}</div>
+        <div class="text-xs text-white mt-0.5">DEA: {{ cfg_global.get('codigo_dea', 'S2355D2303') }}</div>
+      </div>
+
+      <!-- Enlaces principales filtrados segun el rol del usuario -->
+      <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto text-sm">
+        <a href="{{ url_for('dashboard.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ 'bg-institucional-700 text-white font-medium' if request.endpoint == 'dashboard.index' else 'text-white hover:bg-white/10' }}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6"/></svg>
+          <span>Inicio</span>
+        </a>
+
+        {% if usuario_actual and usuario_actual.rol in ('admin', 'operador') %}
+        <a href="{{ url_for('estudiantes.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ 'bg-institucional-700 text-white font-medium' if request.blueprint == 'estudiantes' else 'text-white hover:bg-white/10' }}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Estudiantes</span>
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('calificaciones.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ 'bg-institucional-700 text-white font-medium' if request.blueprint == 'calificaciones' else 'text-white hover:bg-white/10' }}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>Gestión de Sección</span>
+        </a>
+
+        {% if usuario_actual and usuario_actual.rol == 'admin' %}
+        <div class="pt-4 pb-1 px-3 text-xs font-semibold uppercase tracking-wider text-blue-300/80">Gestión del Sistema</div>
+
+        <a href="{{ url_for('academico.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ 'bg-institucional-700 text-white font-medium' if request.blueprint == 'academico' else 'text-white hover:bg-white/10' }}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+          <span>Estructura Académica</span>
+        </a>
+
+        <a id="nav-usuarios-link" href="{{ url_for('usuarios.index') }}" class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg transition-colors {{ 'bg-institucional-700 text-white font-medium' if request.blueprint == 'usuarios' else 'text-white hover:bg-white/10' }}">
+          <span class="flex items-center gap-3">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <span>Usuarios y Roles</span>
+          </span>
+          {% if solicitudes_rec_pendientes and solicitudes_rec_pendientes > 0 %}
+          <span style="background:#dc2626;" class="px-2 py-0.5 text-xs font-bold rounded-full text-white">{{ solicitudes_rec_pendientes }}</span>
+          {% endif %}
+        </a>
+
+        <a href="{{ url_for('configuracion.index') }}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors {{ 'bg-institucional-700 text-white font-medium' if request.blueprint == 'configuracion' else 'text-white hover:bg-white/10' }}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>Configuración</span>
+        </a>
+        {% endif %}
+
+      </nav>
+
+      <!-- Cuenta (perfil con nombre/rol y salir) + Indicador del periodo escolar en la parte baja -->
+      <div class="p-3 border-t border-white/10 space-y-2 text-xs text-white">
+        {% if usuario_actual %}
+        <div class="flex items-center justify-between gap-2">
+          <a href="{{ url_for('auth.perfil') }}" class="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-lg transition-colors {{ 'bg-institucional-700 font-medium' if request.endpoint == 'auth.perfil' else 'hover:bg-white/10' }}" title="Ir a Mi Perfil">
+            <svg class="w-4 h-4 shrink-0 text-blue-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            <div class="min-w-0">
+              <div class="font-semibold text-white truncate">{{ usuario_actual.nombre }}</div>
+              <div class="text-xs uppercase tracking-wider text-blue-300">{{ usuario_actual.rol }}</div>
+            </div>
+          </a>
+          <form method="POST" action="{{ url_for('auth.logout') }}" class="shrink-0">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="p-2 rounded-lg text-white hover:bg-red-900/40 transition-colors" title="Salir del sistema" aria-label="Salir">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            </button>
+          </form>
+        </div>
+        {% endif %}
+
+        <div id="sidebar-periodo-wrap" class="px-2 pt-2 border-t border-white/10">
+        {% if periodos_globales %}
+        <form method="POST" action="{{ url_for('auth.cambiar_periodo_consulta') }}" class="space-y-1">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <div class="flex items-center justify-between text-[11px]">
+            <label for="sidebar-periodo-select" class="uppercase tracking-wider text-blue-300 font-semibold">Período Escolar</label>
+            {% if es_periodo_historico %}
+            <span class="px-1.5 py-0.5 rounded bg-amber-900/70 text-amber-200 font-semibold">Histórico</span>
+            {% elif periodo_consulta and periodo_consulta.cerrado %}
+            <span class="px-1.5 py-0.5 rounded bg-amber-900/70 text-amber-200 font-semibold">Cerrado</span>
+            {% endif %}
+          </div>
+          <select
+            id="sidebar-periodo-select"
+            name="id_periodo"
+            onchange="this.form.submit()"
+            style="background:#16345c;color:#ffffff;border-color:{{ '#d97706' if periodo_solo_lectura else 'rgba(255,255,255,0.2)' }};"
+            class="w-full px-2.5 py-1.5 rounded-lg border text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600"
+            title="Cambiar período consultado en todo el sistema"
+          >
+            {% for p in periodos_globales %}
+            <option value="{{ p.id }}" {{ 'selected' if periodo_consulta and p.id == periodo_consulta.id }} style="background:#0f294a;color:#ffffff;">
+              {{ p.nombre }}{% if p.activo %} (Activo){% endif %}{% if p.cerrado %} · Cerrado{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+        {% else %}
+        <div class="px-0.5">
+          <span class="px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-200">Sin período activo</span>
+        </div>
+        {% endif %}
+        </div>
+      </div>
+    </aside>
+    {% endif %}
+
+    <!-- Area principal de contenido -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Barra superior: titulo, buscador global, notificaciones y tema claro/oscuro -->
+      {% if not (request.args.get('embed') or request.args.get('parcial')) %}
+      <header class="no-print header-sticky h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 lg:px-6 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <button type="button" onclick="alternarSidebar()" class="lg:hidden p-2 rounded-md border border-slate-200 dark:border-slate-700 text-black dark:text-white shrink-0" aria-label="Menú">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <h1 class="text-sm sm:text-base font-semibold text-black dark:text-white truncate">
+            {% block header_title %}Control de Estudio{% endblock %}
+          </h1>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          {% if usuario_actual and usuario_actual.rol in ('admin', 'operador') %}
+          <form method="GET" action="{{ url_for('estudiantes.index') }}" class="hidden sm:flex items-center gap-1.5">
+            <input type="hidden" name="estado" value="todos">
+            <input
+              type="text"
+              name="q"
+              value="{{ request.args.get('q', '') if request.blueprint == 'estudiantes' else '' }}"
+              placeholder="Buscar estudiante (cédula o nombre)..."
+              style="width:22rem;max-width:34vw;"
+              class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-black dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-600"
+            >
+            <button type="submit" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Buscar</button>
+          </form>
+          {% endif %}
+          {% if usuario_actual and usuario_actual.rol == 'admin' %}
+          <div class="relative" id="bandeja-notif-wrap">
+            <button type="button" onclick="alternarBandejaNotif()" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border {{ 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-900 text-amber-800 dark:text-amber-300' if solicitudes_rec_pendientes and solicitudes_rec_pendientes > 0 else 'border-slate-200 dark:border-slate-700 text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800' }} text-xs font-semibold" title="Bandeja de notificaciones">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              {% if solicitudes_rec_pendientes and solicitudes_rec_pendientes > 0 %}
+              <span>{{ solicitudes_rec_pendientes }}</span>
+              {% endif %}
+            </button>
+            <div id="bandeja-notif-panel" style="width:20rem;" class="hidden absolute right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 overflow-hidden">
+              <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wide text-black dark:text-white">Notificaciones</span>
+                {% if solicitudes_rec_pendientes and solicitudes_rec_pendientes > 0 %}
+                <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900">{{ solicitudes_rec_pendientes }} pendiente{{ 's' if solicitudes_rec_pendientes != 1 else '' }}</span>
+                {% endif %}
+              </div>
+              <div style="max-height:18rem;" class="divide-y divide-slate-200 dark:divide-slate-800 overflow-y-auto">
+                {% if notificaciones_rec %}
+                  {% for n in notificaciones_rec %}
+                  <a href="{{ url_for('usuarios.index') }}" class="block px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <div class="text-xs font-bold text-black dark:text-white">Solicitud de clave temporal</div>
+                    <div class="text-xs text-black dark:text-white opacity-75 mt-0.5">{{ n.nombre }} ({{ n.username }}) · {{ n.correo_solicitado }}</div>
+                  </a>
+                  {% endfor %}
+                {% else %}
+                  <div class="px-4 py-6 text-center text-xs text-black dark:text-white opacity-75">Sin notificaciones pendientes.</div>
+                {% endif %}
+              </div>
+              <div class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-right">
+                <a href="{{ url_for('usuarios.index') }}" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">Ir a Usuarios y Roles</a>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+          <button type="button" onclick="alternarTema()" class="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800" title="Cambiar modo claro/oscuro">
+            <svg class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            <svg class="w-4 h-4 block dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          </button>
+        </div>
+      </header>
+      {% if usuario_actual and periodo_solo_lectura and periodo_consulta %}
+      <div class="no-print bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-900 px-4 lg:px-6 py-2 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <b>Modo consulta (solo lectura):</b> estás visualizando el período <b>{{ periodo_consulta.nombre }}</b>{% if periodo_consulta.cerrado %} (cerrado formalmente){% else %} (histórico){% endif %}.
+        </span>
+        {% if periodo_global and periodo_global.id != periodo_consulta.id %}
+        <form method="POST" action="{{ url_for('auth.cambiar_periodo_consulta') }}" style="display:inline;">
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="id_periodo" value="activo">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button type="submit" class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40">
+            Volver al activo ({{ periodo_global.nombre }})
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <!-- Notificaciones flotantes tipo Sonner -->
+      {% with mensajes = get_flashed_messages(with_categories=true) %}
+        {% if mensajes %}
+        <div id="toast-container" class="no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+          {% for cat, msg in mensajes %}
+          <div class="toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border {{ 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100' if cat == 'error' else 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white' }}">
+            <span>{{ msg }}</span>
+            <button type="button" onclick="cerrarToast(this.parentElement)" class="text-xs font-bold opacity-80 hover:opacity-100 shrink-0">Cerrar</button>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endwith %}
+
+      <main class="flex-1 p-4 lg:p-6 max-w-7xl w-full mx-auto">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal obligatorio de cambio de clave inicial (no pide clave temporal porque ya inicio sesion) -->
+  {% if usuario_actual and usuario_actual.debe_cambiar_password %}
+  <div class="no-print fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+      <div class="bg-[#0f294a] text-white px-5 py-4">
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Seguridad de Cuenta</div>
+        <h2 class="text-base font-bold mt-0.5">Defina su Contraseña Personal</h2>
+      </div>
+      <form id="form-clave-inicial" method="POST" action="{{ url_for('auth.cambiar_password_obligatorio') }}" class="p-5 space-y-4">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <p class="text-xs text-black dark:text-white">
+          Acaba de ingresar con una clave inicial o restablecida. Escriba su nueva contraseña personal (mínimo 6 caracteres y distinta a la anterior) para habilitar el sistema.
+        </p>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Nueva contraseña</label>
+          <input type="password" id="init-pwd-1" name="nueva" required minlength="6" autofocus oninput="validarClavesIniciales()" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Confirmar nueva contraseña</label>
+          <input type="password" id="init-pwd-2" name="confirmar" required minlength="6" oninput="validarClavesIniciales()" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <p id="init-pwd-err" class="hidden text-xs text-red-700 dark:text-red-400 mt-1">Las contraseñas no coinciden.</p>
+        </div>
+        <button type="submit" id="init-pwd-btn" class="w-full py-2.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold">Guardar y Continuar</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Modal reutilizable para confirmar acciones delicadas -->
+  <div id="modal-confirmar" class="no-print hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full p-5 shadow-lg">
+      <h3 class="text-sm font-bold text-black dark:text-white">Confirmar Acción</h3>
+      <p id="modal-confirmar-msg" class="text-xs text-black dark:text-white mt-2"></p>
+      <div class="mt-5 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-confirmar')" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="button" id="modal-confirmar-btn" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Cambia y recuerda el modo claro/oscuro en el navegador
+    function alternarTema() {
+      const esOscuro = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('tema', esOscuro ? 'dark' : 'light');
+    }
+
+    // Abre o cierra la bandeja de notificaciones en la barra superior
+    function alternarBandejaNotif() {
+      const panel = document.getElementById('bandeja-notif-panel');
+      if (panel) panel.classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(e) {
+      const wrap = document.getElementById('bandeja-notif-wrap');
+      const panel = document.getElementById('bandeja-notif-panel');
+      if (wrap && panel && !wrap.contains(e.target)) {
+        panel.classList.add('hidden');
+      }
+    });
+
+    // Abre o cierra el menu lateral en pantallas pequeñas
+    function alternarSidebar(forzar) {
+      const sb = document.getElementById('sidebar');
+      const bd = document.getElementById('sidebar-backdrop');
+      const abrir = typeof forzar === 'boolean' ? forzar : sb.classList.contains('-translate-x-full');
+      sb.classList.toggle('-translate-x-full', !abrir);
+      bd.classList.toggle('hidden', !abrir);
+    }
+
+    // Abre cualquier modal con transicion suave
+    function abrirModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add('modal-backdrop');
+      const panel = el.firstElementChild;
+      if (panel) panel.classList.add('modal-panel');
+      el.classList.remove('hidden');
+      requestAnimationFrame(() => el.classList.add('is-open'));
+    }
+
+    // Cierra cualquier modal con transicion suave
+    function cerrarModal(id) {
+      const el = document.getElementById(id);
+      if (!el || el.classList.contains('hidden')) return;
+      el.classList.remove('is-open');
+      setTimeout(() => el.classList.add('hidden'), 180);
+    }
+
+    // Permite cerrar modales al presionar Escape o hacer clic fuera del cuadro
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.is-open').forEach(m => cerrarModal(m.id));
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (e.target.classList && e.target.classList.contains('modal-backdrop')) {
+        cerrarModal(e.target.id);
+      }
+    });
+
+    // Validacion en vivo para el modal obligatorio de clave inicial
+    function validarClavesIniciales() {
+      const p1 = document.getElementById('init-pwd-1').value;
+      const p2 = document.getElementById('init-pwd-2').value;
+      const err = document.getElementById('init-pwd-err');
+      const btn = document.getElementById('init-pwd-btn');
+      const coincide = !p2 || p1 === p2;
+      err.classList.toggle('hidden', coincide);
+      btn.disabled = !coincide;
+      btn.classList.toggle('opacity-50', !coincide);
+    }
+
+    // Confirmacion reutilizable antes de enviar formularios criticos
+    let _formPendiente = null;
+    function confirmarEnvio(form, mensaje) {
+      _formPendiente = form;
+      document.getElementById('modal-confirmar-msg').textContent = mensaje;
+      abrirModal('modal-confirmar');
+      return false;
+    }
+    document.getElementById('modal-confirmar-btn').addEventListener('click', function() {
+      if (_formPendiente) _formPendiente.submit();
+    });
+
+    // Controla la aparicion y auto-cierre de las notificaciones flotantes
+    function cerrarToast(el) {
+      el.classList.remove('is-visible');
+      setTimeout(() => el.remove(), 220);
+    }
+    document.querySelectorAll('.toast-item').forEach((t, idx) => {
+      requestAnimationFrame(() => setTimeout(() => t.classList.add('is-visible'), idx * 45));
+      let timer = setTimeout(() => cerrarToast(t), 4000);
+      t.addEventListener('mouseenter', () => clearTimeout(timer));
+      t.addEventListener('mouseleave', () => { timer = setTimeout(() => cerrarToast(t), 2000); });
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

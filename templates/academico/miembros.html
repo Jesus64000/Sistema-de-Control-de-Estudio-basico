@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Miembros de Sección{% endblock %}
+{% block header_title %}Nómina de Sección — {{ seccion.grado_nombre }} "{{ seccion.nombre }}"{% endblock %}
+{% block content %}
+<div class="space-y-5">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <div class="text-sm font-bold">{{ seccion.nivel_nombre }} — {{ seccion.grado_nombre }} Sección "{{ seccion.nombre }}"</div>
+      <div class="text-xs text-black dark:text-white mt-0.5">
+        {{ 'Docente Titular' if seccion.tipo_escala == 'literal' else 'Profesor Guía' }}: <b>{{ seccion.docente_guia_nombre or 'Sin asignar' }}</b> · Total inscritos: <b>{{ miembros|length }}</b>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('reportes.excel_nomina', id_seccion=seccion.id) }}" class="px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Exportar Nómina Excel</a>
+      <a href="{{ url_for('academico.index') }}" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Volver</a>
+    </div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left">
+        <thead class="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-black dark:text-white">
+          <tr>
+            <th class="px-4 py-3">#</th>
+            <th class="px-4 py-3">Cédula</th>
+            <th class="px-4 py-3">Estudiante</th>
+            <th class="px-4 py-3">Representante Legal</th>
+            <th class="px-4 py-3">Teléfono / Correo</th>
+            <th class="px-4 py-3">Fecha Inscripción</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+          {% for m in miembros %}
+          <tr>
+            <td class="px-4 py-2.5 text-black dark:text-white">{{ loop.index }}</td>
+            <td class="px-4 py-2.5 font-medium">{{ m.cedula }}</td>
+            <td class="px-4 py-2.5">{{ m.apellidos }} {{ m.nombres }}</td>
+            <td class="px-4 py-2.5 text-xs">{{ m.rep_apellidos }} {{ m.rep_nombres }} ({{ m.rep_parentesco }})</td>
+            <td class="px-4 py-2.5 text-xs">{{ m.rep_telefono }}{% if m.rep_correo %} · {{ m.rep_correo }}{% endif %}</td>
+            <td class="px-4 py-2.5 text-xs">{{ m.fecha_inscripcion.strftime('%d/%m/%Y') if m.fecha_inscripcion else '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="px-4 py-6 text-center text-black dark:text-white">No hay estudiantes inscritos en esta sección.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

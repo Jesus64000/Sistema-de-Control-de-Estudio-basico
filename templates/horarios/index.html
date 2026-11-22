@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% block title %}Horarios de Clases{% endblock %}
+{% block header_title %}Horarios de Clases (Lunes a Viernes){% endblock %}
+{% block content %}
+<div class="space-y-5">
+  <!-- Barra de filtros y acciones -->
+  <div class="no-print bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-wrap items-end justify-between gap-4">
+    {% if usuario_actual.rol != 'docente' %}
+    <form method="GET" class="flex flex-wrap items-end gap-3">
+      <div>
+        <label class="block text-xs font-semibold mb-1">Consultar por</label>
+        <select name="modo" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <option value="seccion" {{ 'selected' if modo == 'seccion' }}>Sección</option>
+          <option value="docente" {{ 'selected' if modo == 'docente' }}>Docente</option>
+        </select>
+      </div>
+
+      {% if modo == 'seccion' %}
+      <div>
+        <label class="block text-xs font-semibold mb-1">Grado / Año</label>
+        <select name="id_grado" onchange="const s=this.form.querySelector('[name=id_seccion]'); if(s) s.value=''; this.form.submit();" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          {% for g in grados_disponibles %}
+          <option value="{{ g.id }}" {{ 'selected' if g.id == id_grado }}>{{ g.nombre }} ({{ g.nivel_nombre }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-1">Sección</label>
+        <select name="id_seccion" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          {% for s in secciones %}
+          <option value="{{ s.id }}" {{ 'selected' if s.id == id_seccion }}>Sección "{{ s.nombre }}" ({{ s.turno }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% else %}
+      <div>
+        <label class="block text-xs font-semibold mb-1">Docente</label>
+        <select name="id_docente" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          {% for d in docentes %}
+          <option value="{{ d.id }}" {{ 'selected' if d.id == id_docente }}>{{ d.apellidos }} {{ d.nombres }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </form>
+    {% else %}
+    <div class="text-sm font-bold">Mi Horario de Clases</div>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-2">
+      {% if usuario_actual.rol == 'admin' and modo == 'seccion' and seccion_actual and not solo_lectura %}
+      <button type="button" onclick="abrirModalBloqueHorario()" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">
+        + Agregar Bloque
+      </button>
+      {% endif %}
+      {% if modo == 'seccion' and seccion_actual %}
+      <a href="{{ url_for('reportes.horario_seccion_pdf', id_seccion=seccion_actual.id, id_periodo=id_periodo) }}" class="btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+        Descargar PDF
+      </a>
+      {% elif modo == 'docente' and docente_actual %}
+      <a href="{{ url_for('reportes.horario_docente_pdf', id_docente=docente_actual.id, id_periodo=id_periodo) }}" class="btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+        Descargar PDF
+      </a>
+      {% endif %}
+      <button type="button" onclick="window.print()" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+        Imprimir Horario
+      </button>
+    </div>
+  </div>
+
+  <!-- Grilla semanal Lunes a Viernes -->
+  <div id="horario-grid-wrap" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+    <!-- Membrete visible solo al imprimir -->
+    <div class="hidden print:block text-center mb-4 pb-2 border-b border-black">
+      <div class="text-xs font-bold uppercase">{{ cfg_global.get('nombre_plantel', 'E. B. N. "Los Laureles"') }}</div>
+      <div class="text-[11px]">Período Escolar {{ periodo.nombre if periodo else '' }}</div>
+    </div>
+
+    {% set total_bloques = namespace(c=0) %}
+    {% for num, lista in bloques_por_dia.items() %}{% set total_bloques.c = total_bloques.c + (lista|length) %}{% endfor %}
+
+    <div class="mb-4 pb-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      {% if modo == 'seccion' and seccion_actual %}
+      <h3 class="text-sm font-bold">Horario Semanal: {{ seccion_actual.grado_nombre }} Sección "{{ seccion_actual.nombre }}"</h3>
+      <div class="flex items-center gap-2">
+        <span class="px-2.5 py-0.5 rounded-full text-xs bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">{{ seccion_actual.turno }}</span>
+        <span class="px-2.5 py-0.5 rounded-full text-xs bg-slate-100 text-black dark:bg-slate-800 dark:text-white">{{ total_bloques.c }} bloques</span>
+      </div>
+      {% elif modo == 'docente' and docente_actual %}
+      <h3 class="text-sm font-bold">Horario del Docente: {{ docente_actual.apellidos }} {{ docente_actual.nombres }}</h3>
+      <span class="px-2.5 py-0.5 rounded-full text-xs bg-slate-100 text-black dark:bg-slate-800 dark:text-white">{{ total_bloques.c }} bloques</span>
+      {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+      {% for num, nombre_dia in dias.items() %}
+      <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+        <div class="bg-[#0f294a] text-white text-xs font-bold uppercase tracking-wider px-3 py-2 text-center">{{ nombre_dia }}</div>
+        <div class="p-2 space-y-2 min-h-[160px]">
+          {% for b in bloques_por_dia.get(num, []) %}
+          <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+            <div class="font-bold text-blue-800 dark:text-blue-300">{{ b.hi }} - {{ b.hf }}</div>
+            <div class="font-semibold text-black dark:text-white">{{ b.materia_nombre or b.descripcion_bloque or 'Bloque Titular' }}</div>
+            {% if modo == 'seccion' %}
+            <div class="text-black dark:text-white">{{ b.docente_nombre }}</div>
+            {% else %}
+            <div class="text-black dark:text-white">{{ b.grado_nombre }} "{{ b.seccion_nombre }}"</div>
+            {% endif %}
+            {% if b.aula %}<span class="inline-block px-2 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700 text-[11px]">{{ b.aula }}</span>{% endif %}
+
+            {% if usuario_actual.rol == 'admin' and modo == 'seccion' and not solo_lectura %}
+            <div class="no-print pt-1 flex items-center gap-3">
+              <button
+                type="button"
+                onclick="abrirModalBloqueHorario(this)"
+                data-id="{{ b.id }}"
+                data-dia="{{ b.dia_semana }}"
+                data-hi="{{ b.hi }}"
+                data-hf="{{ b.hf }}"
+                data-materia="{{ b.id_materia or '' }}"
+                data-desc="{{ b.descripcion_bloque or '' }}"
+                data-docente="{{ b.id_docente }}"
+                data-aula="{{ b.aula or '' }}"
+                class="text-blue-700 dark:text-blue-400 hover:underline text-[11px] font-medium"
+              >Editar</button>
+              <form method="POST" action="{{ url_for('horarios.eliminar', hid=b.id) }}" style="display:inline" class="form-horario-async-del" data-confirm="¿Eliminar este bloque horario?">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="id_seccion" value="{{ id_seccion }}">
+                <button type="submit" class="text-red-700 dark:text-red-400 hover:underline text-[11px]">Eliminar</button>
+              </form>
+            </div>
+            {% endif %}
+          </div>
+          {% else %}
+          <div class="text-xs text-black dark:text-white text-center py-6">Sin bloques</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal mejorado para agregar bloque horario (con validacion anti-choques en servidor) -->
+{% if usuario_actual.rol == 'admin' and modo == 'seccion' and seccion_actual and not solo_lectura %}
+<div id="modal-bloque-horario" class="no-print hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div id="subtitulo-modal-horario" class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Nuevo Bloque</div>
+        <h3 class="text-base font-bold text-white mt-0.5">{{ seccion_actual.grado_nombre }} "{{ seccion_actual.nombre }}"</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-bloque-horario')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-bloque-horario" method="POST" action="{{ url_for('horarios.crear') }}" class="form-horario-async" data-crear-url="{{ url_for('horarios.crear') }}" data-guia="{{ seccion_actual.id_docente_titular_guia or '' }}" data-asignaciones='{{ mapa_asignaciones | tojson }}'>
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
+      <div class="p-6 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Día de la Semana *</label>
+          <select id="bh-dia" name="dia_semana" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for num, nombre_dia in dias.items() %}<option value="{{ num }}">{{ nombre_dia }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold mb-1">Hora Inicio *</label>
+            <input id="bh-hi" type="time" name="hora_inicio" required value="07:00" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1">Hora Fin *</label>
+            <input id="bh-hf" type="time" name="hora_fin" required value="08:30" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Materia (opcional en Primaria)</label>
+          <select id="bh-materia" name="id_materia" onchange="autoSeleccionarDocenteHorario(this)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <option value="">-- Bloque General / Primaria --</option>
+            {% for m in materias_grado %}<option value="{{ m.id }}">{{ m.nombre }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Descripción del Bloque (opcional)</label>
+          <input id="bh-desc" type="text" name="descripcion_bloque" placeholder="Ej. Proyecto de Aula" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Docente *</label>
+          <select id="bh-docente" name="id_docente" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for d in docentes %}<option value="{{ d.id }}" {{ 'selected' if d.id == seccion_actual.id_docente_titular_guia }}>{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Aula / Salón (opcional)</label>
+          <input id="bh-aula" type="text" name="aula" placeholder="Ej. Salón 4" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-bloque-horario')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Bloque</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function mostrarToastHorario(msg, tipo) {
+    let cont = document.getElementById('toast-container');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'toast-container';
+      cont.className = 'no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none';
+      document.body.appendChild(cont);
+    }
+    const item = document.createElement('div');
+    const esErr = tipo === 'error';
+    item.className = 'toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ' +
+      (esErr
+        ? 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100'
+        : 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white');
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Cerrar';
+    btn.className = 'text-xs font-bold opacity-80 hover:opacity-100 shrink-0';
+    btn.onclick = () => cerrarToast(item);
+    item.appendChild(span);
+    item.appendChild(btn);
+    cont.appendChild(item);
+    requestAnimationFrame(() => item.classList.add('is-visible'));
+    setTimeout(() => { if (item.parentElement) cerrarToast(item); }, 4000);
+  }
+
+  function autoSeleccionarDocenteHorario(selMateria) {
+    const form = selMateria && selMateria.closest('form');
+    if (!form) return;
+    let mapa = {};
+    try { mapa = JSON.parse(form.dataset.asignaciones || '{}'); } catch (_) {}
+    const docSel = document.getElementById('bh-docente');
+    if (!docSel) return;
+    const mid = selMateria.value;
+    const targetDoc = mid && mapa[mid] ? String(mapa[mid]) : (form.dataset.guia || '');
+    if (targetDoc) {
+      docSel.value = targetDoc;
+    }
+  }
+
+  function abrirModalBloqueHorario(btn) {
+    const form = document.getElementById('form-bloque-horario');
+    const sub = document.getElementById('subtitulo-modal-horario');
+    if (!form) return;
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/horarios/editar/' + btn.dataset.id;
+      if (sub) sub.textContent = 'Editar Bloque';
+      document.getElementById('bh-dia').value = btn.dataset.dia || '1';
+      document.getElementById('bh-hi').value = btn.dataset.hi || '07:00';
+      document.getElementById('bh-hf').value = btn.dataset.hf || '08:30';
+      document.getElementById('bh-materia').value = btn.dataset.materia || '';
+      document.getElementById('bh-desc').value = btn.dataset.desc || '';
+      document.getElementById('bh-docente').value = btn.dataset.docente || '';
+      document.getElementById('bh-aula').value = btn.dataset.aula || '';
+    } else {
+      form.action = form.dataset.crearUrl || '/horarios/crear';
+      if (sub) sub.textContent = 'Nuevo Bloque';
+      document.getElementById('bh-dia').value = '1';
+      document.getElementById('bh-hi').value = '07:00';
+      document.getElementById('bh-hf').value = '08:30';
+      document.getElementById('bh-materia').value = '';
+      document.getElementById('bh-desc').value = '';
+      document.getElementById('bh-aula').value = '';
+      autoSeleccionarDocenteHorario(document.getElementById('bh-materia'));
+    }
+    abrirModal('modal-bloque-horario');
+  }
+
+  async function recargarGrillaHorario() {
+    const wrap = document.getElementById('horario-grid-wrap');
+    if (!wrap) { window.location.reload(); return; }
+    const resp = await fetch(window.location.href);
+    const html = await resp.text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const nuevo = doc.getElementById('horario-grid-wrap');
+    if (nuevo) {
+      wrap.innerHTML = nuevo.innerHTML;
+    } else {
+      window.location.reload();
+    }
+  }
+
+  document.addEventListener('submit', async function(e) {
+    const form = e.target;
+    if (!form.classList) return;
+    const esBloque = form.classList.contains('form-horario-async');
+    const esDel = form.classList.contains('form-horario-async-del');
+    if (!esBloque && !esDel) return;
+
+    e.preventDefault();
+    if (esDel && !confirm(form.dataset.confirm || '¿Eliminar este bloque horario?')) return;
+
+    try {
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: new FormData(form)
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        mostrarToastHorario(data.mensaje || 'No se pudo completar la operación.', 'error');
+        return;
+      }
+      if (esBloque) cerrarModal('modal-bloque-horario');
+      mostrarToastHorario(data.mensaje || 'Horario actualizado.', 'ok');
+      await recargarGrillaHorario();
+    } catch (_) {
+      mostrarToastHorario('Error de conexión.', 'error');
+    }
+  });
+</script>
+{% endblock %}

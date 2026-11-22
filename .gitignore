@@ -1,0 +1,23 @@
+# Entorno y secretos
+.env
+.secret_key
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Desarrollo local Fedora / Docker (el cliente utiliza Windows 10 + XAMPP)
+/dev-docker/
+
+# Archivos de referencia / borradores locales en la raiz (no forman parte de la entrega final)
+/ejemplo de documentos/
+/index.html
+/scropts/
+/Propuesta_Sistema_Control_de_Estudio.pdf
+
+# Archivos generados del sistema operativo
+*.log
+.DS_Store
+Thumbs.db

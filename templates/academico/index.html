@@ -1,0 +1,811 @@
+{% extends "base.html" %}
+{% block title %}Estructura Académica{% endblock %}
+{% block header_title %}Estructura Académica{% endblock %}
+{% block content %}
+<style>
+  .academico-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  @media (min-width: 1024px) {
+    .academico-layout {
+      grid-template-columns: 240px minmax(0, 1fr);
+      align-items: start;
+    }
+    .academico-sidebar-sticky {
+      position: sticky;
+      top: 5.25rem;
+    }
+  }
+</style>
+
+<div id="academico-layout" class="academico-layout" style="transition:opacity 120ms ease;">
+  <!-- Sub-navegacion lateral -->
+  <aside class="academico-sidebar-sticky bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-3">
+    <div class="px-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+      <div class="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Configuración Base</div>
+      <div class="text-xs opacity-75 mt-0.5">
+        Período: <b>{{ periodo_activo.nombre if periodo_activo else 'Sin período activo' }}</b>
+      </div>
+    </div>
+
+    <nav class="space-y-1 text-xs font-semibold">
+      <button type="button" onclick="mostrarTab('secciones')" id="tab-btn-secciones" class="tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-blue-700 text-white text-left">
+        <span>Secciones</span>
+        <span style="background:rgba(255,255,255,0.2)" class="px-2 py-0.5 rounded-full text-[11px] text-white">{{ secciones|length }}</span>
+      </button>
+      <button type="button" onclick="mostrarTab('docentes')" id="tab-btn-docentes" class="tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>Docentes</span>
+        <span class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 dark:bg-slate-800 text-black dark:text-white">{{ docentes|length }}</span>
+      </button>
+      <button type="button" onclick="mostrarTab('materias')" id="tab-btn-materias" class="tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>Materias (Pensum)</span>
+        <span class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 dark:bg-slate-800 text-black dark:text-white">{{ materias|length }}</span>
+      </button>
+      <button type="button" onclick="mostrarTab('grados')" id="tab-btn-grados" class="tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>Grados y Años</span>
+        <span class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 dark:bg-slate-800 text-black dark:text-white">{{ grados|length }}</span>
+      </button>
+      <button type="button" onclick="mostrarTab('periodos')" id="tab-btn-periodos" class="tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>Períodos Escolares</span>
+        <span class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 dark:bg-slate-800 text-black dark:text-white">{{ periodos|length }}</span>
+      </button>
+    </nav>
+  </aside>
+
+  <!-- Contenido principal -->
+  <div class="min-w-0 space-y-5">
+    <!-- Pestana Secciones -->
+    <section id="tab-secciones" class="tab-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold">
+            Secciones{% if periodo_seleccionado %} — {{ periodo_seleccionado.nombre }}{% endif %}
+          </h2>
+          <p class="text-xs opacity-75">Administra las secciones del período activo (cambia de período desde el menú lateral para consultar históricos).</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="filtro-sec-grado" onchange="filtrarSecciones()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+            <option value="">Todos los grados / años</option>
+            {% for g in grados %}
+            <option value="{{ g.id }}">{{ g.nivel_nombre }} · {{ g.nombre }}</option>
+            {% endfor %}
+          </select>
+          <input id="filtro-sec-txt" type="text" oninput="filtrarSecciones()" placeholder="Buscar sección o guía..." class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+          {% if not solo_lectura %}
+            {% if periodos|length > 1 %}
+            <button type="button" onclick="abrirModal('modal-copiar-secciones')" class="px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold">Copiar de Período Anterior</button>
+            {% endif %}
+            <button type="button" onclick="abrirModal('modal-seccion')" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nueva Sección</button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+        {% for s in secciones %}
+        <div
+          class="fila-seccion px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+          data-grado="{{ s.id_grado_anio }}"
+          data-search="{{ (s.grado_nombre ~ ' ' ~ s.nombre ~ ' ' ~ s.nivel_nombre ~ ' ' ~ (s.docente_guia_nombre or ''))|lower }}"
+        >
+          <div class="space-y-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-bold">{{ s.grado_nombre }} "{{ s.nombre }}"</span>
+              <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800' if s.tipo_escala == 'literal' else 'bg-slate-100 text-black dark:bg-slate-800 dark:text-white' }}">{{ s.nivel_nombre }}</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-black dark:bg-slate-800 dark:text-white">{{ s.turno }}</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-black dark:bg-slate-800 dark:text-white">{{ s.total_alumnos or 0 }} alumnos</span>
+              {% set tot_mat = s.total_materias or 0 %}
+              {% set asig_mat = s.materias_asignadas or 0 %}
+              <span class="px-2 py-0.5 rounded-full text-xs {{ 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900' if (tot_mat > 0 and asig_mat >= tot_mat) else 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900' }}">
+                {{ asig_mat }}/{{ tot_mat }} materias con docente
+              </span>
+            </div>
+            <div class="text-xs text-black dark:text-white opacity-80">
+              {{ 'Docente Titular' if s.tipo_escala == 'literal' else 'Profesor Guía' }}: <b>{{ s.docente_guia_nombre or 'Sin asignar' }}</b>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {% if not solo_lectura %}
+            <button type="button" onclick="abrirCambiarGuia({{ s.id }}, '{{ s.grado_nombre|e }} {{ s.nombre|e }}', '{{ s.id_docente_titular_guia or '' }}')" class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium">Titular / Guía</button>
+            {% endif %}
+            <a href="{{ url_for('calificaciones.index', id_periodo=periodo_seleccionado.id if periodo_seleccionado else None, id_grado=s.id_grado_anio, id_seccion=s.id) }}" class="px-3 py-1.5 text-xs rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Gestionar Sección</a>
+          </div>
+        </div>
+        {% else %}
+        <div class="px-5 py-6 text-center text-xs text-black dark:text-white space-y-2">
+          <p class="opacity-75">Sin secciones registradas en {{ periodo_seleccionado.nombre if periodo_seleccionado else 'el período activo' }}.</p>
+          {% if not solo_lectura and periodos|length > 1 %}
+          <button type="button" onclick="abrirModal('modal-copiar-secciones')" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Copiar secciones de un período anterior</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Pestana Docentes -->
+    <section id="tab-docentes" class="tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold">Personal Docente</h2>
+          <p class="text-xs opacity-75">Registra, edita y consulta la carga horaria del personal docente.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="filtro-doc-cat" onchange="filtrarDocentes()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+            <option value="">Todas las categorías</option>
+            <option value="Media General">Media General</option>
+            <option value="Primaria">Primaria</option>
+            <option value="Especialista">Especialista</option>
+          </select>
+          <select id="filtro-doc-est" onchange="filtrarDocentes()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+            <option value="">Todos los estados</option>
+            <option value="1">Activos</option>
+            <option value="0">Inactivos</option>
+          </select>
+          <input id="filtro-docentes" type="text" oninput="filtrarDocentes()" placeholder="Buscar docente..." class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+          <button type="button" onclick="abrirModalDocente()" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nuevo Docente</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-3">Cédula</th>
+              <th class="px-4 py-3">Docente</th>
+              <th class="px-4 py-3">Categoría / Esp.</th>
+              <th class="px-4 py-3">Contacto</th>
+              <th class="px-4 py-3">Acceso</th>
+              <th class="px-4 py-3">Estado</th>
+              <th class="px-4 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for d in docentes %}
+            <tr
+              class="fila-docente hover:bg-slate-50 dark:hover:bg-slate-800/40"
+              data-categoria="{{ d.categoria }}"
+              data-activo="{{ '1' if d.activo else '0' }}"
+              data-search="{{ (d.cedula ~ ' ' ~ d.apellidos ~ ' ' ~ d.nombres ~ ' ' ~ (d.especialidad or ''))|lower }}"
+            >
+              <td class="px-4 py-2.5 font-medium tabular-nums">{{ d.cedula }}</td>
+              <td class="px-4 py-2.5 font-semibold">{{ d.apellidos }} {{ d.nombres }}</td>
+              <td class="px-4 py-2.5 text-xs">{{ d.categoria }} · {{ d.especialidad or '-' }}</td>
+              <td class="px-4 py-2.5 text-xs">{{ d.telefono or '-' }}{% if d.correo %} · {{ d.correo }}{% endif %}</td>
+              <td class="px-4 py-2.5 text-xs">
+                {% if d.tiene_usuario %}
+                <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-medium">Con usuario</span>
+                {% else %}
+                <span class="px-2 py-0.5 rounded-full bg-slate-100 text-black dark:bg-slate-800 dark:text-white opacity-75">Sin usuario</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-2.5">
+                <form method="POST" action="{{ url_for('academico.docente_toggle', did=d.id) }}" class="form-academico-async">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="px-2.5 py-0.5 text-xs rounded-full font-medium {{ 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900' if d.activo else 'bg-slate-200 text-black dark:bg-slate-800 dark:text-white' }}">
+                    {{ 'Activo' if d.activo else 'Inactivo' }}
+                  </button>
+                </form>
+              </td>
+              <td style="white-space:nowrap" class="px-4 py-2.5 text-right space-x-1">
+                <button
+                  type="button"
+                  onclick="abrirModalDocente(this)"
+                  data-id="{{ d.id }}"
+                  data-cedula="{{ d.cedula }}"
+                  data-nombres="{{ d.nombres }}"
+                  data-apellidos="{{ d.apellidos }}"
+                  data-categoria="{{ d.categoria }}"
+                  data-telefono="{{ d.telefono or '' }}"
+                  data-correo="{{ d.correo or '' }}"
+                  data-especialidad="{{ d.especialidad or '' }}"
+                  data-direccion="{{ d.direccion or '' }}"
+                  class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+                >Editar</button>
+                <a href="{{ url_for('academico.docente_detalle', did=d.id) }}" class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 text-xs font-semibold">Ver Carga</a>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="px-4 py-6 text-center text-xs text-black dark:text-white opacity-75">Sin docentes registrados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Pestana Materias (Pensum) -->
+    <section id="tab-materias" class="tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-sm font-bold">Materias y Pensum por Grado / Año</h2>
+          <p class="text-xs opacity-75">Las materias configuradas aquí aplican automáticamente a todas las secciones del mismo grado o año.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="filtro-mat-grado" onchange="filtrarMaterias()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+            <option value="">Todos los grados / años</option>
+            {% for g in grados %}
+            <option value="{{ g.id }}">{{ g.nivel_nombre }} · {{ g.nombre }}</option>
+            {% endfor %}
+          </select>
+          <input id="filtro-materias" type="text" oninput="filtrarMaterias()" placeholder="Buscar materia..." class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+          <button type="button" onclick="abrirModalMateria()" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nueva Materia</button>
+        </div>
+      </div>
+      <div class="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+        {% for m in materias %}
+        <div
+          class="fila-materia px-5 py-3 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+          data-grado="{{ m.id_grado_anio }}"
+          data-search="{{ (m.nombre ~ ' ' ~ (m.codigo or '') ~ ' ' ~ m.grado_nombre ~ ' ' ~ m.bloque_nombre)|lower }}"
+        >
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-semibold">{{ m.nombre }}</span>
+              {% if m.codigo %}<span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-medium">{{ m.codigo }}</span>{% endif %}
+              {% if m.es_especial %}<span class="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900">Especial</span>{% endif %}
+            </div>
+            <div class="text-xs text-black dark:text-white opacity-75 mt-0.5">{{ m.grado_nombre }} · {{ m.bloque_nombre }}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              onclick="abrirModalMateria(this)"
+              data-id="{{ m.id }}"
+              data-grado="{{ m.id_grado_anio }}"
+              data-bloque="{{ m.id_bloque }}"
+              data-nombre="{{ m.nombre }}"
+              data-codigo="{{ m.codigo or '' }}"
+              data-especial="{{ '1' if m.es_especial else '0' }}"
+              class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+            >Editar</button>
+            <form method="POST" action="{{ url_for('academico.materia_toggle', mid=m.id) }}" class="form-academico-async">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="px-2.5 py-0.5 text-xs rounded-full font-medium {{ 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900' if m.activo else 'bg-slate-200 text-black dark:bg-slate-800 dark:text-white' }}">
+                {{ 'Activa' if m.activo else 'Inactiva' }}
+              </button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <p class="px-5 py-6 text-center text-xs text-black dark:text-white opacity-75">Sin materias registradas.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Pestana Grados y Anos -->
+    <section id="tab-grados" class="tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-bold">Grados (Primaria) y Años (Media General)</h2>
+          <p class="text-xs opacity-75">Estructura de niveles, escala de evaluación y resumen de pensum y secciones.</p>
+        </div>
+        <button type="button" onclick="abrirModalGrado()" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nuevo Grado / Año</button>
+      </div>
+      <div class="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+        {% for g in grados %}
+        <div class="px-5 py-3 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+          <div class="space-y-0.5">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-semibold">{{ g.nombre }}</span>
+              <span class="px-2.5 py-0.5 rounded-full text-xs bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">{{ g.nivel_nombre }}</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-black dark:text-white">{{ 'Escala Literal (A-E)' if g.tipo_escala == 'literal' else 'Escala Numérica (01-20)' }}</span>
+            </div>
+            <div class="text-xs opacity-75">Orden: {{ g.orden }} · {{ g.total_secciones or 0 }} secciones activas · {{ g.total_materias or 0 }} materias activas</div>
+          </div>
+          <button
+            type="button"
+            onclick="abrirModalGrado(this)"
+            data-id="{{ g.id }}"
+            data-nivel="{{ g.id_nivel }}"
+            data-nombre="{{ g.nombre }}"
+            data-orden="{{ g.orden }}"
+            class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+          >Editar</button>
+        </div>
+        {% else %}
+        <p class="px-5 py-6 text-center text-xs text-black dark:text-white opacity-75">Sin grados o años registrados.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Pestana Periodos Escolares -->
+    <section id="tab-periodos" class="tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-bold">Períodos Escolares</h2>
+          <p class="text-xs opacity-75">Define las fechas del año escolar y controla el período activo del sistema.</p>
+        </div>
+        <button type="button" onclick="abrirModalPeriodo()" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nuevo Período</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-5 py-3">Período</th>
+              <th class="px-5 py-3">Fecha Inicio</th>
+              <th class="px-5 py-3">Fecha Fin</th>
+              <th class="px-5 py-3">Estado</th>
+              <th class="px-5 py-3 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for p in periodos %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="px-5 py-3 font-semibold">{{ p.nombre }}</td>
+              <td class="px-5 py-3 text-xs tabular-nums">{{ p.fecha_inicio or '-' }}</td>
+              <td class="px-5 py-3 text-xs tabular-nums">{{ p.fecha_fin or '-' }}</td>
+              <td class="px-5 py-3">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  {% if p.activo %}
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">Activo</span>
+                  {% else %}
+                  <span class="px-2.5 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-75">Inactivo</span>
+                  {% endif %}
+                  {% if p.cerrado %}
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900">Cerrado</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td style="white-space:nowrap" class="px-5 py-3 text-right space-x-1">
+                <button
+                  type="button"
+                  onclick="abrirModalPeriodo(this)"
+                  data-id="{{ p.id }}"
+                  data-nombre="{{ p.nombre }}"
+                  data-inicio="{{ p.fecha_inicio or '' }}"
+                  data-fin="{{ p.fecha_fin or '' }}"
+                  class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
+                >Editar</button>
+                <form method="POST" action="{{ url_for('academico.periodo_cerrar', pid=p.id) }}" class="form-academico-async" style="display:inline" data-confirm="{{ '¿Reabrir el período ' ~ p.nombre ~ ' para permitir modificaciones?' if p.cerrado else '¿Cerrar formalmente el período ' ~ p.nombre ~ '? Quedará bloqueado en modo solo lectura.' }}">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="px-2.5 py-1 text-xs rounded border {{ 'border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400' if p.cerrado else 'border-amber-300 text-amber-800 dark:border-amber-900 dark:text-amber-300' }} font-medium">
+                    {{ 'Reabrir' if p.cerrado else 'Cerrar' }}
+                  </button>
+                </form>
+                {% if not p.activo %}
+                <form method="POST" action="{{ url_for('academico.periodo_activar', pid=p.id) }}" class="form-academico-async" style="display:inline" data-confirm="¿Activar el período {{ p.nombre }} como período escolar actual?">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="px-3 py-1 text-xs rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Activar</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="px-5 py-6 text-center text-xs opacity-75">Sin períodos escolares registrados.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal Copiar Secciones de Periodo Anterior -->
+<div id="modal-copiar-secciones" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Apertura de Año Escolar</div><h3 class="text-base font-bold text-white mt-0.5">Copiar Secciones a {{ periodo_activo.nombre if periodo_activo else '' }}</h3></div>
+      <button type="button" onclick="cerrarModal('modal-copiar-secciones')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form method="POST" action="{{ url_for('academico.secciones_copiar') }}" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3 text-xs">
+        <p class="opacity-80">Duplica automáticamente todas las secciones activas de un período anterior hacia el período activo actual (sin duplicar las que ya existan).</p>
+        <div>
+          <label class="block font-semibold mb-1">Período de Origen *</label>
+          <select name="id_periodo_origen" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for p in periodos if not periodo_activo or p.id != periodo_activo.id %}
+            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <label class="flex items-center gap-2 pt-1">
+          <input type="checkbox" name="copiar_guias" value="1" checked>
+          <span>Copiar también Docente Titular / Profesor Guía (si sigue activo)</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" name="copiar_asignaciones" value="1">
+          <span>Copiar también asignaciones de docentes por materia</span>
+        </label>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-copiar-secciones')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Copiar Secciones</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Nueva Seccion -->
+<div id="modal-seccion" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Estructura</div><h3 class="text-base font-bold text-white mt-0.5">Nueva Sección</h3></div>
+      <button type="button" onclick="cerrarModal('modal-seccion')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form method="POST" action="{{ url_for('academico.seccion_crear') }}" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <div><label class="block text-xs font-semibold mb-1">Grado / Año *</label><select name="id_grado_anio" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for g in grados %}<option value="{{ g.id }}">{{ g.nivel_nombre }} — {{ g.nombre }}</option>{% endfor %}</select></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-semibold mb-1">Sección *</label><input type="text" name="nombre" placeholder="Ej. A" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+          <div><label class="block text-xs font-semibold mb-1">Turno</label><select name="turno" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Integral">Integral</option></select></div>
+        </div>
+        <div><label class="block text-xs font-semibold mb-1">Docente Titular / Profesor Guía</label><select name="id_docente_titular_guia" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="">-- Sin asignar --</option>{% for d in docentes if d.activo %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-seccion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Crear Sección</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Cambiar Titular / Profesor Guia -->
+<div id="modal-cambiar-guia" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Asignación</div><h3 id="guia-titulo" class="text-base font-bold text-white mt-0.5">Titular / Profesor Guía</h3></div>
+      <button type="button" onclick="cerrarModal('modal-cambiar-guia')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-cambiar-guia" method="POST" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6">
+        <label class="block text-xs font-semibold mb-1">Docente Titular / Profesor Guía</label>
+        <select id="guia-docente" name="id_docente" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <option value="">-- Sin asignar --</option>
+          {% for d in docentes if d.activo %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-cambiar-guia')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Docente -->
+<div id="modal-docente" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Personal</div><h3 id="titulo-modal-docente" class="text-base font-bold text-white mt-0.5">Registrar Docente</h3></div>
+      <button type="button" onclick="cerrarModal('modal-docente')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-modal-docente" method="POST" action="{{ url_for('academico.docente_crear') }}" data-crear-url="{{ url_for('academico.docente_crear') }}" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 max-h-[72vh] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><label class="block text-xs font-semibold mb-1">Cédula *</label><input id="doc-cedula" type="text" name="cedula" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Categoría</label><select id="doc-categoria" name="categoria" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="Media General">Docente Media General</option><option value="Primaria">Docente de Aula Primaria</option><option value="Especialista">Docente Especialista</option></select></div>
+        <div><label class="block text-xs font-semibold mb-1">Apellidos *</label><input id="doc-apellidos" type="text" name="apellidos" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Nombres *</label><input id="doc-nombres" type="text" name="nombres" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Teléfono</label><input id="doc-telefono" type="text" name="telefono" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Correo Electrónico</label><input id="doc-correo" type="email" name="correo" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Especialidad</label><input id="doc-especialidad" type="text" name="especialidad" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Dirección</label><input id="doc-direccion" type="text" name="direccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-docente')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Docente</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Materia -->
+<div id="modal-materia" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Pensum</div><h3 id="titulo-modal-materia" class="text-base font-bold text-white mt-0.5">Nueva Materia</h3></div>
+      <button type="button" onclick="cerrarModal('modal-materia')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-modal-materia" method="POST" action="{{ url_for('academico.materia_crear') }}" data-crear-url="{{ url_for('academico.materia_crear') }}" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <div><label class="block text-xs font-semibold mb-1">Grado / Año *</label><select id="mat-grado" name="id_grado_anio" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for g in grados %}<option value="{{ g.id }}">{{ g.nivel_nombre }} — {{ g.nombre }}</option>{% endfor %}</select></div>
+        <div><label class="block text-xs font-semibold mb-1">Bloque de Formación *</label><select id="mat-bloque" name="id_bloque" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for b in bloques %}<option value="{{ b.id }}">{{ b.nombre }}</option>{% endfor %}</select></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-semibold mb-1">Nombre *</label><input id="mat-nombre" type="text" name="nombre" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+          <div><label class="block text-xs font-semibold mb-1">Código (opcional)</label><input id="mat-codigo" type="text" name="codigo" placeholder="Ej. MAT" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        </div>
+        <label class="flex items-center gap-2 text-xs pt-1"><input id="mat-especial" type="checkbox" name="es_especial" value="1"> Materia Especial (ej. Educación Física)</label>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-materia')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Materia</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Grado / Ano -->
+<div id="modal-grado" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Niveles</div><h3 id="titulo-modal-grado" class="text-base font-bold text-white mt-0.5">Nuevo Grado / Año</h3></div>
+      <button type="button" onclick="cerrarModal('modal-grado')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-modal-grado" method="POST" action="{{ url_for('academico.grado_crear') }}" data-crear-url="{{ url_for('academico.grado_crear') }}" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <div><label class="block text-xs font-semibold mb-1">Nivel Educativo</label><select id="grd-nivel" name="id_nivel" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for n in niveles %}<option value="{{ n.id }}">{{ n.nombre }}</option>{% endfor %}</select></div>
+        <div><label class="block text-xs font-semibold mb-1">Nombre *</label><input id="grd-nombre" type="text" name="nombre" placeholder="Ej. 1.º Grado o 1.º Año" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Orden</label><input id="grd-orden" type="number" name="orden" value="1" min="1" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-grado')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Crear / Editar Periodo -->
+<div id="modal-periodo" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Calendario</div><h3 id="titulo-modal-periodo" class="text-base font-bold text-white mt-0.5">Nuevo Período Escolar</h3></div>
+      <button type="button" onclick="cerrarModal('modal-periodo')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    </div>
+    <form id="form-modal-periodo" method="POST" action="{{ url_for('academico.periodo_crear') }}" data-crear-url="{{ url_for('academico.periodo_crear') }}" class="form-academico-async">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Nombre del Período *</label>
+          <input id="per-nombre" type="text" name="nombre" placeholder="Ej. 2026-2027" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold mb-1">Fecha Inicio</label>
+            <input id="per-inicio" type="date" name="fecha_inicio" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold mb-1">Fecha Fin</label>
+            <input id="per-fin" type="date" name="fecha_fin" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-periodo')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Período</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function mostrarToastAcademico(msg, tipo) {
+    let cont = document.getElementById('toast-container');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'toast-container';
+      cont.className = 'no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none';
+      document.body.appendChild(cont);
+    }
+    const item = document.createElement('div');
+    const esErr = tipo === 'error';
+    item.className = 'toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ' +
+      (esErr
+        ? 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100'
+        : 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white');
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Cerrar';
+    btn.className = 'text-xs font-bold opacity-80 hover:opacity-100 shrink-0';
+    btn.onclick = () => cerrarToast(item);
+    item.appendChild(span);
+    item.appendChild(btn);
+    cont.appendChild(item);
+    requestAnimationFrame(() => item.classList.add('is-visible'));
+    setTimeout(() => { if (item.parentElement) cerrarToast(item); }, 4000);
+  }
+
+  function mostrarTab(nombre) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.remove('bg-blue-700', 'text-white');
+      b.classList.add('text-black', 'dark:text-white');
+    });
+    const panel = document.getElementById('tab-' + nombre);
+    const btn = document.getElementById('tab-btn-' + nombre);
+    if (!panel || !btn) return;
+    panel.classList.remove('hidden');
+    btn.classList.add('bg-blue-700', 'text-white');
+    btn.classList.remove('text-black', 'dark:text-white');
+    localStorage.setItem('academico_tab', nombre);
+  }
+
+  function filtrarSecciones() {
+    const g = (document.getElementById('filtro-sec-grado') || {}).value || '';
+    const q = ((document.getElementById('filtro-sec-txt') || {}).value || '').trim().toLowerCase();
+    document.querySelectorAll('.fila-seccion').forEach(el => {
+      const okGrado = !g || el.dataset.grado === g;
+      const okTxt = !q || el.dataset.search.includes(q);
+      el.classList.toggle('hidden', !(okGrado && okTxt));
+    });
+  }
+
+  function filtrarDocentes() {
+    const cat = (document.getElementById('filtro-doc-cat') || {}).value || '';
+    const est = (document.getElementById('filtro-doc-est') || {}).value || '';
+    const q = ((document.getElementById('filtro-docentes') || {}).value || '').trim().toLowerCase();
+    document.querySelectorAll('.fila-docente').forEach(el => {
+      const okCat = !cat || el.dataset.categoria === cat;
+      const okEst = !est || el.dataset.activo === est;
+      const okTxt = !q || el.dataset.search.includes(q);
+      el.classList.toggle('hidden', !(okCat && okEst && okTxt));
+    });
+  }
+
+  function filtrarMaterias() {
+    const g = (document.getElementById('filtro-mat-grado') || {}).value || '';
+    const q = ((document.getElementById('filtro-materias') || {}).value || '').trim().toLowerCase();
+    document.querySelectorAll('.fila-materia').forEach(el => {
+      const okGrado = !g || el.dataset.grado === g;
+      const okTxt = !q || el.dataset.search.includes(q);
+      el.classList.toggle('hidden', !(okGrado && okTxt));
+    });
+  }
+
+  function abrirCambiarGuia(idSeccion, nombreSeccion, idDocente) {
+    document.getElementById('form-cambiar-guia').action = '/academico/secciones/' + idSeccion + '/guia';
+    document.getElementById('guia-titulo').textContent = nombreSeccion;
+    document.getElementById('guia-docente').value = idDocente || '';
+    abrirModal('modal-cambiar-guia');
+  }
+
+  function abrirModalDocente(btn) {
+    const form = document.getElementById('form-modal-docente');
+    const titulo = document.getElementById('titulo-modal-docente');
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/academico/docentes/editar/' + btn.dataset.id;
+      titulo.textContent = 'Editar Docente';
+      document.getElementById('doc-cedula').value = btn.dataset.cedula || '';
+      document.getElementById('doc-nombres').value = btn.dataset.nombres || '';
+      document.getElementById('doc-apellidos').value = btn.dataset.apellidos || '';
+      document.getElementById('doc-categoria').value = btn.dataset.categoria || 'Media General';
+      document.getElementById('doc-telefono').value = btn.dataset.telefono || '';
+      document.getElementById('doc-correo').value = btn.dataset.correo || '';
+      document.getElementById('doc-especialidad').value = btn.dataset.especialidad || '';
+      document.getElementById('doc-direccion').value = btn.dataset.direccion || '';
+    } else {
+      form.action = form.dataset.crearUrl;
+      titulo.textContent = 'Registrar Docente';
+      form.reset();
+    }
+    abrirModal('modal-docente');
+  }
+
+  function abrirModalMateria(btn) {
+    const form = document.getElementById('form-modal-materia');
+    const titulo = document.getElementById('titulo-modal-materia');
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/academico/materias/editar/' + btn.dataset.id;
+      titulo.textContent = 'Editar Materia';
+      document.getElementById('mat-grado').value = btn.dataset.grado || '';
+      document.getElementById('mat-bloque').value = btn.dataset.bloque || '';
+      document.getElementById('mat-nombre').value = btn.dataset.nombre || '';
+      document.getElementById('mat-codigo').value = btn.dataset.codigo || '';
+      document.getElementById('mat-especial').checked = btn.dataset.especial === '1';
+    } else {
+      form.action = form.dataset.crearUrl;
+      titulo.textContent = 'Nueva Materia';
+      form.reset();
+      const fg = document.getElementById('filtro-mat-grado');
+      if (fg && fg.value) document.getElementById('mat-grado').value = fg.value;
+    }
+    abrirModal('modal-materia');
+  }
+
+  function abrirModalGrado(btn) {
+    const form = document.getElementById('form-modal-grado');
+    const titulo = document.getElementById('titulo-modal-grado');
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/academico/grados/editar/' + btn.dataset.id;
+      titulo.textContent = 'Editar Grado / Año';
+      document.getElementById('grd-nivel').value = btn.dataset.nivel || '';
+      document.getElementById('grd-nombre').value = btn.dataset.nombre || '';
+      document.getElementById('grd-orden').value = btn.dataset.orden || '1';
+    } else {
+      form.action = form.dataset.crearUrl;
+      titulo.textContent = 'Nuevo Grado / Año';
+      form.reset();
+    }
+    abrirModal('modal-grado');
+  }
+
+  function abrirModalPeriodo(btn) {
+    const form = document.getElementById('form-modal-periodo');
+    const titulo = document.getElementById('titulo-modal-periodo');
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/academico/periodos/editar/' + btn.dataset.id;
+      titulo.textContent = 'Editar Período Escolar';
+      document.getElementById('per-nombre').value = btn.dataset.nombre || '';
+      document.getElementById('per-inicio').value = btn.dataset.inicio || '';
+      document.getElementById('per-fin').value = btn.dataset.fin || '';
+    } else {
+      form.action = form.dataset.crearUrl;
+      titulo.textContent = 'Nuevo Período Escolar';
+      form.reset();
+    }
+    abrirModal('modal-periodo');
+  }
+
+  async function recargarLayoutAcademico() {
+    const layout = document.getElementById('academico-layout');
+    if (!layout) { window.location.reload(); return; }
+    const estadoFiltros = {
+      secGrado: (document.getElementById('filtro-sec-grado') || {}).value || '',
+      secTxt: (document.getElementById('filtro-sec-txt') || {}).value || '',
+      docCat: (document.getElementById('filtro-doc-cat') || {}).value || '',
+      docEst: (document.getElementById('filtro-doc-est') || {}).value || '',
+      docTxt: (document.getElementById('filtro-docentes') || {}).value || '',
+      matGrado: (document.getElementById('filtro-mat-grado') || {}).value || '',
+      matTxt: (document.getElementById('filtro-materias') || {}).value || ''
+    };
+    layout.style.opacity = '0.55';
+    try {
+      const resp = await fetch(window.location.href);
+      const html = await resp.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const nuevo = doc.getElementById('academico-layout');
+      if (!nuevo) { window.location.reload(); return; }
+      layout.innerHTML = nuevo.innerHTML;
+      [
+        '#modal-seccion select[name="id_grado_anio"]',
+        '#modal-seccion select[name="id_docente_titular_guia"]',
+        '#guia-docente',
+        '#mat-grado',
+        '#sidebar-periodo-wrap'
+      ].forEach(sel => {
+        const cur = document.querySelector(sel);
+        const nxt = doc.querySelector(sel);
+        if (cur && nxt) cur.innerHTML = nxt.innerHTML;
+      });
+      if (document.getElementById('filtro-sec-grado')) document.getElementById('filtro-sec-grado').value = estadoFiltros.secGrado;
+      if (document.getElementById('filtro-sec-txt')) document.getElementById('filtro-sec-txt').value = estadoFiltros.secTxt;
+      if (document.getElementById('filtro-doc-cat')) document.getElementById('filtro-doc-cat').value = estadoFiltros.docCat;
+      if (document.getElementById('filtro-doc-est')) document.getElementById('filtro-doc-est').value = estadoFiltros.docEst;
+      if (document.getElementById('filtro-docentes')) document.getElementById('filtro-docentes').value = estadoFiltros.docTxt;
+      if (document.getElementById('filtro-mat-grado')) document.getElementById('filtro-mat-grado').value = estadoFiltros.matGrado;
+      if (document.getElementById('filtro-materias')) document.getElementById('filtro-materias').value = estadoFiltros.matTxt;
+      mostrarTab(localStorage.getItem('academico_tab') || 'secciones');
+      filtrarSecciones();
+      filtrarDocentes();
+      filtrarMaterias();
+    } finally {
+      layout.style.opacity = '1';
+    }
+  }
+
+  document.addEventListener('submit', async function(e) {
+    const form = e.target;
+    if (!form.classList || !form.classList.contains('form-academico-async')) return;
+    e.preventDefault();
+    if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
+
+    try {
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: new FormData(form)
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        mostrarToastAcademico(data.mensaje || 'No se pudo completar la operación.', 'error');
+        return;
+      }
+      const modal = form.closest('[id^="modal-"]');
+      if (modal) cerrarModal(modal.id);
+      mostrarToastAcademico(data.mensaje || 'Cambios guardados.', 'ok');
+      await recargarLayoutAcademico();
+    } catch (_) {
+      mostrarToastAcademico('Error de conexión al guardar.', 'error');
+    }
+  });
+
+  mostrarTab(localStorage.getItem('academico_tab') || 'secciones');
+</script>
+{% endblock %}

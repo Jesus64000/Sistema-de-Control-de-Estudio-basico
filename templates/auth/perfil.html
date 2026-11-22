@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Mi Perfil{% endblock %}
+{% block header_title %}Mi Perfil de Usuario{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <!-- Tarjeta de datos personales, rol y preferencia visual -->
+  <div class="space-y-6">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6">
+      <h2 class="text-base font-bold border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">Datos de la Cuenta</h2>
+      <dl class="space-y-3 text-sm">
+        <div class="flex items-center justify-between">
+          <dt class="text-black dark:text-white font-medium">Nombre:</dt>
+          <dd class="font-semibold text-black dark:text-white">{{ usuario.nombre }}</dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt class="text-black dark:text-white font-medium">Usuario:</dt>
+          <dd class="font-semibold text-black dark:text-white">{{ usuario.username }}</dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt class="text-black dark:text-white font-medium">Rol en el Sistema:</dt>
+          <dd>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase bg-blue-100 text-blue-900 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+              {{ usuario.rol }}
+            </span>
+          </dd>
+        </div>
+        <div class="pt-2 border-t border-slate-200 dark:border-slate-800 text-xs text-black dark:text-white">
+          {% if usuario.rol == 'admin' %}
+            Acceso total: estructura académica, usuarios, configuración, matrícula, notas y reportes.
+          {% elif usuario.rol == 'operador' %}
+            Acceso operativo: matrícula de estudiantes, carga de notas, horarios, Excel y certificados.
+          {% else %}
+            Acceso docente: carga de calificaciones en sus secciones/materias asignadas y consulta de su horario.
+          {% endif %}
+        </div>
+      </dl>
+    </div>
+
+    <!-- Preferencia de tema claro / oscuro -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 flex items-center justify-between gap-4">
+      <div>
+        <h3 class="text-sm font-bold text-black dark:text-white">Apariencia del Sistema</h3>
+        <p class="text-xs text-black dark:text-white mt-0.5">Cambie entre modo claro y modo oscuro en este equipo.</p>
+      </div>
+      <button type="button" onclick="alternarTema()" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800">
+        Alternar Tema
+      </button>
+    </div>
+  </div>
+
+  <!-- Tarjeta de cambio voluntario de contrasena -->
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 h-fit">
+    <h2 class="text-base font-bold border-b border-slate-200 dark:border-slate-800 pb-3 mb-4">Cambiar Contraseña</h2>
+    <form method="POST" class="space-y-4">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="perf-actual" class="block text-xs font-semibold mb-1">Contraseña actual</label>
+        <input id="perf-actual" type="password" name="actual" required autocomplete="current-password" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+      </div>
+      <div>
+        <label for="perf-nueva" class="block text-xs font-semibold mb-1">Nueva contraseña (mínimo 6 caracteres)</label>
+        <input id="perf-nueva" type="password" name="nueva" required minlength="6" oninput="validarClavesPerfil()" autocomplete="new-password" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+      </div>
+      <div>
+        <label for="perf-confirmar" class="block text-xs font-semibold mb-1">Confirmar nueva contraseña</label>
+        <input id="perf-confirmar" type="password" name="confirmar" required minlength="6" oninput="validarClavesPerfil()" autocomplete="new-password" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        <p id="perf-err" class="hidden text-xs text-red-700 dark:text-red-400 mt-1">Las contraseñas nuevas no coinciden.</p>
+      </div>
+      <button id="perf-btn" type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold">
+        Actualizar Contraseña
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Verifica en vivo que la nueva contrasena y su confirmacion coincidan
+  function validarClavesPerfil() {
+    const p1 = document.getElementById('perf-nueva').value;
+    const p2 = document.getElementById('perf-confirmar').value;
+    const err = document.getElementById('perf-err');
+    const btn = document.getElementById('perf-btn');
+    const coincide = !p2 || p1 === p2;
+    err.classList.toggle('hidden', coincide);
+    btn.disabled = !coincide;
+    btn.classList.toggle('opacity-50', !coincide);
+  }
+</script>
+{% endblock %}

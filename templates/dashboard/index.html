@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+{% block title %}Inicio{% endblock %}
+{% block header_title %}Panel Principal{% endblock %}
+{% block content %}
+{% if usuario_actual.rol == 'docente' and resumen_docente %}
+<!-- Portal personalizado para el rol Docente -->
+<div class="space-y-6">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <div class="text-xs uppercase font-semibold text-blue-700 dark:text-blue-400">Portal Docente</div>
+      <h2 class="text-base font-bold mt-0.5">{{ resumen_docente.docente.apellidos }} {{ resumen_docente.docente.nombres }}</h2>
+      <p class="text-xs text-black dark:text-white mt-0.5">{{ resumen_docente.docente.categoria }} · {{ resumen_docente.docente.especialidad or 'Docente' }}</p>
+    </div>
+    <div class="no-print flex flex-wrap gap-2">
+      <a href="{{ url_for('calificaciones.index') }}" class="btn px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Cargar Calificaciones</a>
+      <a href="{{ url_for('reportes.horario_docente_pdf', id_docente=resumen_docente.docente.id, id_periodo=periodo.id if periodo else None) }}" class="btn px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Descargar Horario PDF</a>
+      <button type="button" onclick="window.print()" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Imprimir Horario</button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Secciones donde el docente es Titular (Primaria) o Profesor Guia (Media) -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+      <h3 class="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">Secciones como Titular / Profesor Guía</h3>
+      <div class="space-y-2 text-sm">
+        {% for g in resumen_docente.guias %}
+        <a href="{{ url_for('calificaciones.index', id_seccion=g.id) }}" class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors">
+          <span class="font-medium">{{ g.grado }} "{{ g.seccion }}" ({{ g.nivel }})</span>
+          <span class="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200">{{ g.turno }}</span>
+        </a>
+        {% else %}
+        <p class="text-xs text-black dark:text-white">No tiene secciones asignadas como titular o guía.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Materias asignadas con enlace directo para cargar notas -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+      <h3 class="text-sm font-bold border-b border-slate-200 dark:border-slate-800 pb-2 mb-3">Materias Asignadas (clic para cargar notas)</h3>
+      <div class="space-y-2 text-sm">
+        {% for a in resumen_docente.asignaciones %}
+        <a href="{{ url_for('calificaciones.index', id_seccion=a.id_seccion, id_materia=a.id_materia) }}" class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors">
+          <span class="font-medium">{{ a.materia }}</span>
+          <span class="text-xs font-semibold text-blue-700 dark:text-blue-400">{{ a.grado }} "{{ a.seccion }}"</span>
+        </a>
+        {% else %}
+        <p class="text-xs text-black dark:text-white">Sin materias asignadas en este período.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Mi Horario Semanal de Clases -->
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+    {% set total_bloques_doc = namespace(c=0) %}
+    {% for num, lista in bloques_docente.items() %}{% set total_bloques_doc.c = total_bloques_doc.c + (lista|length) %}{% endfor %}
+    <div class="mb-4 pb-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <h3 class="text-sm font-bold">Mi Horario de Clases (Lunes a Viernes)</h3>
+      <span class="px-2.5 py-0.5 rounded-full text-xs bg-slate-100 text-black dark:bg-slate-800 dark:text-white">{{ total_bloques_doc.c }} bloques</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+      {% for num, nombre_dia in dias_semana.items() %}
+      <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+        <div class="bg-[#0f294a] text-white text-xs font-bold uppercase tracking-wider px-3 py-2 text-center">{{ nombre_dia }}</div>
+        <div class="p-2 space-y-2 min-h-[160px]">
+          {% for b in bloques_docente.get(num, []) %}
+          <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+            <div class="font-bold text-blue-800 dark:text-blue-300">{{ b.hi }} - {{ b.hf }}</div>
+            <div class="font-semibold text-black dark:text-white">{{ b.materia_nombre or b.descripcion_bloque or 'Bloque Titular' }}</div>
+            <div class="text-black dark:text-white">{{ b.grado_nombre }} "{{ b.seccion_nombre }}"</div>
+            {% if b.aula %}<span class="inline-block px-2 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700 text-[11px]">{{ b.aula }}</span>{% endif %}
+          </div>
+          {% else %}
+          <div class="text-xs text-black dark:text-white text-center py-6 opacity-70">Sin bloques</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% else %}
+<!-- Panel principal para Administrador y Operador -->
+<div class="space-y-6">
+  <!-- Barra de resumen de prosecucion del periodo consultado -->
+  {% if periodo %}
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="font-bold text-black dark:text-white">Resumen de Matrícula · {{ periodo.nombre }}</span>
+      <span class="opacity-70">({{ prosecucion.total_registrados }} registrados en el plantel)</span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="tabular-nums px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+        Nuevos: <b>{{ prosecucion.nuevos_ingresos }}</b>
+      </span>
+      <span class="tabular-nums px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+        Reinscritos: <b>{{ prosecucion.reinscritos }}</b>
+      </span>
+      {% if prosecucion.sin_reinscribir > 0 %}
+      <a href="{{ url_for('estudiantes.index', estado='sin_inscribir') }}" class="tabular-nums px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-semibold hover:underline">
+        Sin inscribir: {{ prosecucion.sin_reinscribir }}
+      </a>
+      {% endif %}
+      {% if prosecucion.egresados > 0 %}
+      <a href="{{ url_for('estudiantes.index', estado='egresado') }}" class="tabular-nums px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-semibold hover:underline">
+        Egresados: {{ prosecucion.egresados }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 3 KPIs estructurales + Acciones Rapidas (4ta tarjeta) -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <a href="{{ url_for('estudiantes.index', id_periodo=periodo.id if periodo else 0) }}" class="hover-lift bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between gap-3">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-black dark:text-white">Estudiantes Inscritos</div>
+        <div class="tabular-nums text-2xl font-bold text-institucional-800 dark:text-blue-400 mt-1">{{ stats.estudiantes }}</div>
+        <div class="text-xs text-black dark:text-white mt-1">Primaria: <b>{{ stats.primaria }}</b> · Media: <b>{{ stats.media }}</b>{% if stats.retirados %} · Retirados: <b>{{ stats.retirados }}</b>{% endif %}</div>
+      </div>
+      <div class="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+    </a>
+
+    <a href="{{ url_for('academico.index') if usuario_actual.rol == 'admin' else url_for('horarios.index') }}" class="hover-lift bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between gap-3">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-black dark:text-white">Docentes Activos</div>
+        <div class="tabular-nums text-2xl font-bold text-institucional-800 dark:text-blue-400 mt-1">{{ stats.docentes }}</div>
+        <div class="text-xs text-black dark:text-white mt-1">Personal docente activo</div>
+      </div>
+      <div class="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      </div>
+    </a>
+
+    <a href="{{ url_for('usuarios.index') if usuario_actual.rol == 'admin' else url_for('auth.perfil') }}" class="hover-lift bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex items-start justify-between gap-3">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-black dark:text-white">Cuentas de Acceso</div>
+        <div class="tabular-nums text-2xl font-bold text-institucional-800 dark:text-blue-400 mt-1">{{ stats.usuarios }}</div>
+        <div class="text-xs text-black dark:text-white mt-1">Admin: <b>{{ stats.usr_admin }}</b> · Oper.: <b>{{ stats.usr_operador }}</b> · Doc.: <b>{{ stats.usr_docente }}</b></div>
+      </div>
+      <div class="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+      </div>
+    </a>
+
+    <!-- 4ta tarjeta: Acciones Rapidas (solo Inscribir y Calificaciones en modal) -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 flex flex-col justify-between gap-2">
+      <div class="text-xs font-semibold uppercase tracking-wide text-black dark:text-white">Acciones Rápidas</div>
+      <div class="flex flex-col gap-2 text-xs">
+        <button type="button" onclick="abrirModalNuevoEstudiante()" class="btn w-full px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold text-center">Inscribir Estudiante</button>
+        <button type="button" onclick="abrirModalCalificaciones()" class="btn w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold text-center hover:bg-slate-100 dark:hover:bg-slate-800">Cargar Calificaciones</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pendientes operativos dinamicos + Avance de Carga de Calificaciones -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Pendientes -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
+        <h3 class="text-sm font-bold text-black dark:text-white">Pendientes</h3>
+        {% if not alertas_pendientes %}
+        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">Todo al día</span>
+        {% else %}
+        <span class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900">{{ alertas_pendientes|length }} por atender</span>
+        {% endif %}
+      </div>
+
+      {% if not alertas_pendientes %}
+      <div class="flex-1 flex flex-col items-center justify-center text-center py-6 px-4">
+        <div class="p-3 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 mb-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <p class="text-sm font-semibold text-black dark:text-white">Todo está en orden</p>
+        <p class="text-xs text-black dark:text-white opacity-75 mt-1">No hay tareas operativas ni datos incompletos pendientes.</p>
+      </div>
+      {% else %}
+      <div class="space-y-2 overflow-y-auto" style="max-height:19rem;">
+        {% for item in alertas_pendientes %}
+        {% set es_critica = item.prioridad == 'critica' %}
+        {% set borde_izq = 'border-left:3px solid #dc2626;' if es_critica else 'border-left:3px solid #d97706;' %}
+        {% set badge_icono = 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-400' if es_critica else 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300' %}
+        {% if item.url %}
+        <a href="{{ item.url }}" style="{{ borde_izq }}" class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors">
+        {% else %}
+        <div style="{{ borde_izq }}" class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+        {% endif %}
+          <div class="flex items-start gap-2 min-w-0">
+            <div class="p-2 rounded-lg shrink-0 {{ badge_icono }}" aria-hidden="true">
+              {% if item.tipo == 'config' %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              {% elif item.tipo in ('periodo', 'horario') %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              {% elif item.tipo == 'seccion' %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+              {% elif item.tipo == 'materia' %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+              {% elif item.tipo == 'usuario' %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+              {% else %}
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              {% endif %}
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-black dark:text-white">{{ item.titulo }}</div>
+              <div class="text-xs text-black dark:text-white opacity-75 mt-0.5">{{ item.detalle }}</div>
+            </div>
+          </div>
+          {% if item.url %}
+          <span class="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-blue-700 dark:text-blue-400 shrink-0">Resolver</span>
+        </a>
+        {% else %}
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Avance de carga de calificaciones (mitad Primaria / mitad Media dentro del cuadro) -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
+        <h3 class="text-sm font-bold text-black dark:text-white">Avance de Carga de Calificaciones</h3>
+        <a href="{{ url_for('calificaciones.index', id_periodo=periodo.id if periodo else None) }}" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">Ir a Notas</a>
+      </div>
+
+      <div class="flex-1 flex flex-col gap-3 text-xs">
+        <!-- Mitad superior: Primaria -->
+        <div class="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-black dark:text-white">Educación Primaria (Literal)</span>
+            {% if avance_primaria.total > 0 %}
+            <span class="tabular-nums px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">{{ avance_primaria.total }} estudiantes</span>
+            {% endif %}
+          </div>
+
+          {% if avance_primaria.total == 0 %}
+          <div class="flex-1 flex flex-col items-center justify-center text-center py-3 px-2">
+            <div class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-70 mb-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+            <p class="font-semibold text-black dark:text-white">Sin estudiantes inscritos en Primaria</p>
+          </div>
+          {% elif not avance_primaria.tiene_notas %}
+          <div class="flex-1 flex flex-col items-center justify-center text-center py-3 px-2">
+            <div class="p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 mb-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <p class="font-semibold text-black dark:text-white">Sin calificaciones cargadas aún</p>
+            <p class="text-black dark:text-white opacity-70 mt-0.5">Aparecerán al registrar las primeras notas.</p>
+          </div>
+          {% else %}
+          <div style="display:grid;grid-template-columns:repeat({{ avance_primaria.lapsos_visibles|length }},minmax(0,1fr));gap:0.5rem;">
+            {% for lap in avance_primaria.lapsos_visibles %}
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-semibold">{{ lap.label }}</span>
+                <span class="tabular-nums font-bold {{ 'text-emerald-700 dark:text-emerald-400' if lap.pct == 100 else 'text-blue-700 dark:text-blue-400' }}">{{ lap.pct }}%</span>
+              </div>
+              <div class="tabular-nums text-black dark:text-white opacity-75 mt-0.5">{{ lap.cargados }} / {{ lap.total }}</div>
+              <div style="height:4px;" class="w-full rounded-full bg-slate-200 dark:bg-slate-700 mt-1 overflow-hidden">
+                <div style="width:{{ lap.pct }}%;height:100%;{{ 'background:#059669;' if lap.pct == 100 else '' }}" class="bg-blue-700 rounded-full"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Mitad inferior: Media General -->
+        <div class="flex-1 rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-black dark:text-white">Media General (Numérica)</span>
+            {% if avance_media.total > 0 %}
+            <span class="tabular-nums px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white border border-slate-200 dark:border-slate-700 font-semibold">{{ avance_media.total }} notas posibles</span>
+            {% endif %}
+          </div>
+
+          {% if avance_media.total == 0 %}
+          <div class="flex-1 flex flex-col items-center justify-center text-center py-3 px-2">
+            <div class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-70 mb-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            </div>
+            <p class="font-semibold text-black dark:text-white">Sin matrícula o materias activas</p>
+          </div>
+          {% elif not avance_media.tiene_notas %}
+          <div class="flex-1 flex flex-col items-center justify-center text-center py-3 px-2">
+            <div class="p-2 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 mb-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <p class="font-semibold text-black dark:text-white">Sin calificaciones cargadas aún</p>
+            <p class="text-black dark:text-white opacity-70 mt-0.5">Aparecerán al registrar las primeras notas.</p>
+          </div>
+          {% else %}
+          <div style="display:grid;grid-template-columns:repeat({{ avance_media.lapsos_visibles|length }},minmax(0,1fr));gap:0.5rem;">
+            {% for lap in avance_media.lapsos_visibles %}
+            <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-semibold">{{ lap.label }}</span>
+                <span class="tabular-nums font-bold {{ 'text-emerald-700 dark:text-emerald-400' if lap.pct == 100 else 'text-blue-700 dark:text-blue-400' }}">{{ lap.pct }}%</span>
+              </div>
+              <div class="tabular-nums text-black dark:text-white opacity-75 mt-0.5">{{ lap.cargados }} / {{ lap.total }}</div>
+              <div style="height:4px;" class="w-full rounded-full bg-slate-200 dark:bg-slate-700 mt-1 overflow-hidden">
+                <div style="width:{{ lap.pct }}%;height:100%;{{ 'background:#059669;' if lap.pct == 100 else '' }}" class="bg-blue-700 rounded-full"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ultimos Estudiantes Inscritos + Cumpleaneros de la Semana -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Tabla mejorada de ultimos inscritos -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-black dark:text-white">Últimos Estudiantes Inscritos</h2>
+          <p class="text-xs text-black dark:text-white opacity-70">Registros recientes del período actual</p>
+        </div>
+        <a href="{{ url_for('estudiantes.index') }}" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">Ver todos</a>
+      </div>
+
+      {% if ultimos_estudiantes %}
+      <div class="overflow-x-auto flex-1">
+        <table class="w-full text-xs text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-2.5">Estudiante</th>
+              <th class="px-3 py-2.5">Grado / Sección</th>
+              <th class="px-3 py-2.5">Fecha</th>
+              <th class="px-4 py-2.5 text-right">Documentos</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for est in ultimos_estudiantes %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+              <td class="px-4 py-2.5">
+                <div class="font-semibold text-black dark:text-white">{{ est.apellidos }} {{ est.nombres }}</div>
+                <div class="tabular-nums text-black dark:text-white opacity-70">{{ est.cedula }}</div>
+              </td>
+              <td class="px-3 py-2.5">
+                <div class="font-medium text-black dark:text-white">{{ est.grado }} "{{ est.seccion }}"</div>
+                <span class="inline-block mt-0.5 px-2 py-0.5 rounded-full font-medium {{ 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800' if est.tipo_escala == 'literal' else 'bg-slate-100 text-black dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700' }}">
+                  {{ 'Primaria' if est.tipo_escala == 'literal' else 'Media' }}
+                </span>
+              </td>
+              <td class="px-3 py-2.5 tabular-nums text-black dark:text-white opacity-75">
+                {{ est.fecha_inscripcion.strftime('%d/%m/%Y') if est.fecha_inscripcion else '-' }}
+              </td>
+              <td class="px-4 py-2.5 text-right">
+                <div class="flex items-center justify-end gap-1.5">
+                  <a href="{{ url_for('reportes.certificado_vista', id_inscripcion=est.id_inscripcion) }}" class="px-2 py-1 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-semibold">Ver</a>
+                  <a href="{{ url_for('reportes.certificado_pdf', id_inscripcion=est.id_inscripcion) }}" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">PDF</a>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="flex-1 flex flex-col items-center justify-center text-center py-6 px-4">
+        <div class="p-3 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-70 mb-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </div>
+        <p class="text-xs font-semibold text-black dark:text-white">Sin estudiantes inscritos</p>
+        <p class="text-xs text-black dark:text-white opacity-70 mt-0.5">Usa "Inscribir Estudiante" para registrar el primer alumno.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Cumpleaneros de la semana -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold text-black dark:text-white">Cumpleañeros de la Semana</h2>
+          <p class="text-xs text-black dark:text-white opacity-70">Próximos 7 días en el plantel</p>
+        </div>
+        <span class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">{{ cumpleaneros|length }}</span>
+      </div>
+
+      {% if cumpleaneros %}
+      <div class="divide-y divide-slate-200 dark:divide-slate-800 flex-1">
+        {% for c in cumpleaneros %}
+        <div class="px-5 py-3 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-xs font-semibold text-black dark:text-white truncate">{{ c.apellidos }} {{ c.nombres }}</div>
+            <div class="text-xs text-black dark:text-white opacity-70 mt-0.5">{{ c.grado }} "{{ c.seccion }}"</div>
+          </div>
+          <span class="tabular-nums shrink-0 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-blue-700 dark:text-blue-400">
+            {{ c.dia_mes }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="flex-1 flex flex-col items-center justify-center text-center py-6 px-4">
+        <div class="p-3 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-70 mb-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        </div>
+        <p class="text-xs font-semibold text-black dark:text-white">Sin cumpleaños esta semana</p>
+        <p class="text-xs text-black dark:text-white opacity-70 mt-0.5">No hay estudiantes cumpliendo años en los próximos 7 días.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% with origen_modal_estudiante='dashboard' %}
+  {% include "estudiantes/_modal_nuevo_estudiante.html" %}
+{% endwith %}
+
+<!-- Modal Cargar Calificaciones directo desde Inicio -->
+<div id="modal-cargar-calificaciones" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden flex flex-col" style="max-width:64rem;height:85vh;">
+    <div class="bg-[#0f294a] text-white px-6 py-3.5 flex items-center justify-between shrink-0">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Evaluación</div>
+        <h3 class="text-base font-bold text-white mt-0.5">Cargar Calificaciones</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-cargar-calificaciones')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <iframe id="iframe-calificaciones" data-src="{{ url_for('calificaciones.index', embed=1) }}" src="about:blank" style="border:0;" class="w-full flex-1 bg-slate-50 dark:bg-slate-950"></iframe>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function abrirModalCalificaciones() {
+    const iframe = document.getElementById('iframe-calificaciones');
+    if (iframe && iframe.getAttribute('src') === 'about:blank') {
+      iframe.setAttribute('src', iframe.dataset.src);
+    }
+    abrirModal('modal-cargar-calificaciones');
+  }
+</script>
+{% endblock %}

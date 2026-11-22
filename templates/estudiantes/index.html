@@ -1,0 +1,1020 @@
+{% extends "base.html" %}
+{% block title %}Estudiantes{% endblock %}
+{% block header_title %}Gestión de Estudiantes y Representantes{% endblock %}
+{% block content %}
+<div class="space-y-5">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+    <!-- Cabecera del modulo: conteo y acciones principales -->
+    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 class="text-sm font-bold text-black dark:text-white">
+          {% if periodo %}Matrícula {{ periodo.nombre }}{% else %}Directorio General de Estudiantes{% endif %}
+        </h2>
+        <span id="contador-estudiantes" class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+          {{ inscripciones|length }} mostrados
+        </span>
+        {% if resumen.sin_inscribir > 0 and periodo %}
+        <a href="{{ url_for('estudiantes.index', id_periodo=id_periodo_sel, estado='sin_inscribir') }}" class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-black dark:text-white border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700">
+          {{ resumen.sin_inscribir }} sin inscribir
+        </a>
+        {% endif %}
+        {% if total_retirados and total_retirados > 0 %}
+        <a href="{{ url_for('estudiantes.index', id_periodo=id_periodo_sel, estado='retirado') }}" class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900">
+          {{ total_retirados }} retirado{{ 's' if total_retirados != 1 else '' }}
+        </a>
+        {% endif %}
+        {% if resumen.egresados > 0 %}
+        <a href="{{ url_for('estudiantes.index', id_periodo=id_periodo_sel, estado='egresado') }}" class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
+          {{ resumen.egresados }} egresado{{ 's' if resumen.egresados != 1 else '' }}
+        </a>
+        {% endif %}
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('reportes.excel_nomina', id_periodo=id_periodo_sel, q=filtro, id_nivel=id_nivel or '', id_grado=id_grado or '', id_seccion=id_seccion or '', estado=estado) }}" class="btn px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Exportar Excel
+        </a>
+        {% if periodos_origen and periodo_activo and not periodo_activo.cerrado %}
+        <button type="button" onclick="abrirModalProsecucion()" class="btn px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold">
+          Prosecución Masiva
+        </button>
+        {% endif %}
+        {% if periodo_activo and not periodo_activo.cerrado %}
+        <button type="button" onclick="abrirModalNuevoEstudiante()" class="btn px-4 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">
+          + Registrar Estudiante
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if periodo_activo and not secciones and not periodo_activo.cerrado and not solo_lectura %}
+    <div class="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 text-xs flex flex-wrap items-center justify-between gap-2">
+      <span>
+        El período activo <b>{{ periodo_activo.nombre }}</b> aún no tiene secciones creadas. Los estudiantes registrados en años anteriores siguen visibles para consultar su expediente y certificados.
+      </span>
+      {% if usuario_actual and usuario_actual.rol == 'admin' %}
+      <a href="{{ url_for('academico.index') }}" class="underline font-semibold">Crear o copiar secciones</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Barra de filtros y busqueda en vivo -->
+    <form method="GET" class="px-5 py-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
+      <input
+        id="buscador-estudiantes"
+        type="text"
+        name="q"
+        value="{{ filtro }}"
+        oninput="filtrarTablaEstudiantes()"
+        placeholder="Filtrar en vivo por cédula, nombre o representante..."
+        class="w-64 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-600"
+      >
+      <select name="id_nivel" onchange="this.form.submit()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+        <option value="">Todos los niveles</option>
+        {% for n in niveles %}
+        <option value="{{ n.id }}" {{ 'selected' if n.id == id_nivel }}>{{ n.nombre }}</option>
+        {% endfor %}
+      </select>
+      <select name="id_grado" onchange="this.form.submit()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+        <option value="">Todos los grados</option>
+        {% for g in grados %}
+        {% if not id_nivel or g.id_nivel == id_nivel %}
+        <option value="{{ g.id }}" {{ 'selected' if g.id == id_grado }}>{{ g.nombre }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      {% if secciones_consulta %}
+      <select name="id_seccion" onchange="this.form.submit()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+        <option value="">Todas las secciones</option>
+        {% for s in secciones_consulta %}
+        {% if (not id_nivel or s.id_nivel == id_nivel) and (not id_grado or s.id_grado_anio == id_grado) %}
+        <option value="{{ s.id }}" {{ 'selected' if s.id == id_seccion }}>{{ s.grado_nombre }} "{{ s.nombre }}"</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      {% endif %}
+      <select name="estado" onchange="this.form.submit()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+        <option value="activo" {{ 'selected' if estado == 'activo' }}>Inscritos (Activos)</option>
+        <option value="sin_inscribir" {{ 'selected' if estado == 'sin_inscribir' }}>Sin inscribir</option>
+        <option value="retirado" {{ 'selected' if estado == 'retirado' }}>Retirados</option>
+        <option value="egresado" {{ 'selected' if estado == 'egresado' }}>Egresados</option>
+        <option value="todos" {{ 'selected' if estado == 'todos' }}>Todos los registrados</option>
+      </select>
+      <button type="submit" class="px-3 py-1.5 rounded-lg bg-slate-800 dark:bg-slate-700 text-white text-xs font-semibold">Filtrar</button>
+      {% if filtro or id_nivel or id_grado or id_seccion or estado != 'activo' %}
+      <a href="{{ url_for('estudiantes.index') }}" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Limpiar</a>
+      {% endif %}
+    </form>
+
+    <!-- Barra contextual de seleccion multiple -->
+    <div id="barra-seleccion" class="hidden px-5 py-2.5 bg-blue-50 dark:bg-blue-950/60 border-b border-blue-200 dark:border-blue-900 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div class="flex items-center gap-3">
+        <span id="texto-seleccion" class="font-bold text-blue-800 dark:text-blue-200">0 seleccionados</span>
+        <button type="button" onclick="limpiarSeleccion()" class="text-blue-700 dark:text-blue-400 hover:underline font-medium">Deseleccionar</button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <a id="btn-sel-excel" href="#" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Exportar Excel
+        </a>
+        <a id="btn-sel-ver-cert" href="#" class="hidden px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-200 font-semibold">
+          Ver Certificado
+        </a>
+        <a id="btn-sel-constancia" href="#" class="hidden px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Constancia PDF
+        </a>
+        <a id="btn-sel-boletin" href="#" class="hidden px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Boletín PDF
+        </a>
+        <a id="btn-sel-pdf-uno" href="#" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">
+          1 PDF (Todos)
+        </a>
+        <a id="btn-sel-pdf-zip" href="#" class="px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-800 bg-white dark:bg-slate-900 text-blue-800 dark:text-blue-200 font-semibold">
+          PDFs Separados (ZIP)
+        </a>
+      </div>
+    </div>
+
+    <!-- Tabla limpia de estudiantes -->
+    {% if inscripciones %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs text-left">
+        <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+          <tr>
+            <th class="px-4 py-3" style="width:2rem;">
+              <input id="chk-todos" type="checkbox" onchange="alternarTodos(this.checked)" aria-label="Seleccionar todos">
+            </th>
+            <th class="px-3 py-3">Estudiante</th>
+            <th class="px-3 py-3">Año / Sección</th>
+            <th class="px-3 py-3 text-center">Promedio</th>
+            <th class="px-3 py-3">Representante (Contacto)</th>
+            <th class="px-4 py-3 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-estudiantes" class="divide-y divide-slate-200 dark:divide-slate-800">
+          {% for est in inscripciones %}
+          <tr class="fila-estudiante hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors" data-search="{{ (est.cedula ~ ' ' ~ est.apellidos ~ ' ' ~ est.nombres ~ ' ' ~ (est.rep_cedula or '') ~ ' ' ~ (est.rep_apellidos or '') ~ ' ' ~ (est.rep_nombres or ''))|lower }}">
+            <td class="px-4 py-2.5">
+              {% if est.id_inscripcion %}
+              <input type="checkbox" class="chk-est" value="{{ est.id_inscripcion }}" onchange="actualizarSeleccion()" aria-label="Seleccionar {{ est.apellidos }} {{ est.nombres }}">
+              {% endif %}
+            </td>
+            <td class="px-3 py-2.5">
+              <div class="font-bold text-black dark:text-white">{{ est.apellidos }} {{ est.nombres }}</div>
+              <div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+                <span class="tabular-nums text-black dark:text-white opacity-75">{{ est.cedula }}</span>
+                <span class="text-black dark:text-white opacity-50">·</span>
+                <span class="text-black dark:text-white opacity-75">{{ 'F' if est.genero == 'F' else 'M' }}</span>
+                {% if not est.fecha_nacimiento or not est.direccion %}
+                <span class="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-medium">Ficha incompleta</span>
+                {% endif %}
+              </div>
+            </td>
+            <td class="px-3 py-2.5">
+              {% if est.id_inscripcion %}
+              <div class="font-semibold text-black dark:text-white">
+                {{ est.grado_nombre }} "{{ est.seccion_nombre }}"
+                {% if id_periodo_sel == 0 and est.periodo_insc_nombre %}
+                <span class="font-normal opacity-70">({{ est.periodo_insc_nombre }})</span>
+                {% endif %}
+              </div>
+              <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                <span class="px-2 py-0.5 rounded-full font-medium {{ 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800' if est.tipo_escala == 'literal' else 'bg-slate-100 text-black dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700' }}">
+                  {{ 'Primaria' if est.tipo_escala == 'literal' else 'Media' }}
+                </span>
+                {% if est.estado == 'retirado' %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">Retirado</span>
+                {% endif %}
+                {% if est.condicion == 'repitiente' %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900">Repitiente</span>
+                {% elif est.condicion == 'materia_pendiente' %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900">Mat. Pendiente</span>
+                {% elif est.condicion == 'reingreso' %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">Reingreso</span>
+                {% endif %}
+                {% if est.egresado %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">Egresado</span>
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="flex flex-wrap items-center gap-1">
+                {% if est.egresado %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">Egresado</span>
+                {% else %}
+                <span class="px-2 py-0.5 rounded-full font-semibold bg-slate-100 dark:bg-slate-800 text-black dark:text-white border border-slate-300 dark:border-slate-700">
+                  Sin matrícula{% if periodo %} en {{ periodo.nombre }}{% endif %}
+                </span>
+                {% endif %}
+              </div>
+              <div class="text-black dark:text-white opacity-70 mt-0.5">
+                {% if est.ultimo_periodo_nombre %}
+                Último: {{ est.ultimo_grado_nombre }} "{{ est.ultima_seccion_nombre }}" ({{ est.ultimo_periodo_nombre }})
+                {% else %}
+                Sin historial de inscripción
+                {% endif %}
+              </div>
+              {% endif %}
+            </td>
+            <td class="px-3 py-2.5 text-center">
+              <span class="tabular-nums px-2.5 py-1 rounded-lg font-bold {{ 'bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200' if est.promedio_display != '-' else 'bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-60' }}">
+                {{ est.promedio_display }}
+              </span>
+            </td>
+            <td class="px-3 py-2.5">
+              <div class="font-medium text-black dark:text-white">{{ est.rep_apellidos or '' }} {{ est.rep_nombres or 'Sin representante' }}</div>
+              <div class="tabular-nums text-black dark:text-white opacity-75 mt-0.5">
+                {{ est.rep_telefono or 'S/T' }}{% if est.rep_correo %} · {{ est.rep_correo }}{% endif %}
+              </div>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-center justify-end gap-1.5" style="white-space:nowrap;">
+                {% if not est.id_inscripcion and not est.egresado and periodo_activo and not periodo_activo.cerrado and secciones %}
+                <button type="button" onclick='abrirModalReinscribir({{ est|tojson }})' class="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Reinscribir</button>
+                {% endif %}
+                <button type="button" onclick="abrirVerExpediente({{ est.id }})" class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">Ver</button>
+                <button type="button" onclick='abrirEditarEstudiante({{ est|tojson }})' class="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Editar</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div id="sin-resultados-filtro" class="hidden py-6 px-4 text-center">
+        <p class="text-xs font-semibold text-black dark:text-white">No hay coincidencias para el filtro escrito.</p>
+        <p class="text-xs text-black dark:text-white opacity-70 mt-0.5">Prueba con otra cédula, nombre o borra el texto de búsqueda.</p>
+      </div>
+    </div>
+    {% else %}
+    <div class="flex flex-col items-center justify-center text-center py-6 px-4">
+      <div class="p-3 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-70 mb-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </div>
+      <p class="text-sm font-semibold text-black dark:text-white">No se encontraron estudiantes</p>
+      <p class="text-xs text-black dark:text-white opacity-70 mt-1">Ajusta los filtros o registra un nuevo estudiante para el período actual.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal Ver Expediente Completo (Estudiante + Representante + Todas las Notas de todos los periodos) -->
+<div id="modal-ver-estudiante" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden" style="max-width:48rem;">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Expediente Estudiantil</div>
+        <h3 id="ver-titulo" class="text-base font-bold text-white mt-0.5">Cargando...</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-ver-estudiante')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="ver-contenido" class="p-6 max-h-[75vh] overflow-y-auto space-y-5 text-xs">
+      <p class="text-center py-6 opacity-75">Cargando expediente...</p>
+    </div>
+    <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 text-right">
+      <button type="button" onclick="cerrarModal('modal-ver-estudiante')" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+{% include "estudiantes/_modal_nuevo_estudiante.html" %}
+
+<!-- Modal Editar Estudiante (incluye cedula, cambio de seccion y Retirar/Reactivar) -->
+<div id="modal-editar-estudiante" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-2xl w-full shadow-xl overflow-hidden">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Actualización de Ficha</div>
+        <h3 class="text-base font-bold text-white mt-0.5">Editar Estudiante y Representante</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-editar-estudiante')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-editar-estudiante" method="POST">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" id="ed-id-inscripcion" name="id_inscripcion">
+      <div class="p-6 max-h-[72vh] overflow-y-auto space-y-5">
+        <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-3">1. Datos del Estudiante</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold mb-1">Cédula / Cédula Escolar *</label>
+              <input type="text" id="ed-cedula" name="cedula" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div id="ed-seccion-wrap">
+              <label class="block text-xs font-semibold mb-1">Sección</label>
+              <select id="ed-seccion" name="id_seccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <option value="">-- Sin cambio / Sin matrícula --</option>
+                {% for s in secciones_consulta %}
+                <option value="{{ s.id }}">{{ s.nivel_nombre }} · {{ s.grado_nombre }} "{{ s.nombre }}"</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div id="ed-condicion-wrap">
+              <label class="block text-xs font-semibold mb-1">Condición de Inscripción</label>
+              <select id="ed-condicion" name="condicion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <option value="regular">Regular / Promovido</option>
+                <option value="materia_pendiente">Con Materia(s) Pendiente(s)</option>
+                <option value="repitiente">Repitiente</option>
+                <option value="reingreso">Reingreso</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Apellidos *</label>
+              <input type="text" id="ed-apellidos" name="apellidos" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Nombres *</label>
+              <input type="text" id="ed-nombres" name="nombres" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Género</label>
+              <select id="ed-genero" name="genero" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Fecha de Nacimiento</label>
+              <input type="date" id="ed-fnac" name="fecha_nacimiento" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold mb-1">Dirección del Estudiante</label>
+              <input type="text" id="ed-dir" name="direccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+          <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-3">2. Padre / Madre o Representante Legal</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold mb-1">Cédula Representante *</label>
+              <input type="text" id="ed-rep-ci" name="rep_cedula" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Parentesco</label>
+              <select id="ed-rep-par" name="rep_parentesco" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <option value="Madre">Madre</option>
+                <option value="Padre">Padre</option>
+                <option value="Representante Legal">Representante Legal</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Apellidos Representante *</label>
+              <input type="text" id="ed-rep-ape" name="rep_apellidos" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Nombres Representante *</label>
+              <input type="text" id="ed-rep-nom" name="rep_nombres" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Teléfono Personal *</label>
+              <input type="text" id="ed-rep-tel" name="rep_telefono" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Teléfono de Trabajo</label>
+              <input type="text" id="ed-rep-telt" name="rep_telefono_trabajo" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Correo Electrónico</label>
+              <input type="email" id="ed-rep-cor" name="rep_correo" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Dirección del Representante</label>
+              <input type="text" id="ed-rep-dir" name="rep_direccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+          </div>
+        </div>
+
+        <!-- Estado de inscripcion (Retirar / Reactivar) y Egreso dentro de Editar -->
+        <div id="ed-estado-wrap" class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/40">
+          <div class="text-xs">
+            <div class="font-bold text-black dark:text-white">Estado de Inscripción</div>
+            <div id="ed-estado-texto" class="opacity-75 mt-0.5">Activo</div>
+          </div>
+          <button type="button" id="ed-btn-estado" onclick="cambiarEstadoDesdeEditar()" class="px-3 py-1.5 rounded-lg text-xs font-semibold border"></button>
+        </div>
+
+        <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-800/40">
+          <div class="text-xs">
+            <div class="font-bold text-black dark:text-white">Condición de Egreso</div>
+            <div id="ed-egreso-texto" class="opacity-75 mt-0.5">Estudiante regular</div>
+          </div>
+          <button type="button" id="ed-btn-egreso" onclick="cambiarEgresoDesdeEditar()" class="px-3 py-1.5 rounded-lg text-xs font-semibold border"></button>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-editar-estudiante')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Actualizar Ficha</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Prosecucion / Reinscripcion Masiva Inteligente -->
+{% if periodos_origen and periodo_activo and not periodo_activo.cerrado %}
+<div id="modal-prosecucion" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden" style="max-width:56rem;">
+    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Reinscripción Asistida</div>
+        <h3 class="text-base font-bold text-white mt-0.5">Prosecución y Reinscripción Masiva → {{ periodo_activo.nombre }}</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-prosecucion')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-prosecucion" method="POST" action="{{ url_for('estudiantes.prosecucion_lote') }}">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" id="pros-decisiones-json" name="decisiones_json" value="[]">
+      <div class="p-6 max-h-[74vh] overflow-y-auto space-y-4 text-xs">
+        <div class="px-3.5 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200">
+          Las sugerencias de promoción, materia pendiente, repitiente o egreso se calculan al momento de reinscribir. <b>Marca únicamente a los estudiantes que confirmaron su reinscripción</b> (los que no regresan quedan sin inscribir y conservan su expediente histórico).
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold mb-1">1. Período de Origen *</label>
+            <select id="pros-periodo-origen" onchange="cargarSeccionesOrigen()" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+              <option value="">-- Seleccione período anterior --</option>
+              {% for p in periodos_origen %}
+              <option value="{{ p.id }}">{{ p.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold mb-1">2. Sección de Origen *</label>
+            <select id="pros-seccion-origen" onchange="cargarCandidatosProsecucion()" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+              <option value="">-- Seleccione sección --</option>
+            </select>
+          </div>
+        </div>
+
+        {% if not secciones %}
+        <div class="px-3.5 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200">
+          Aún no hay secciones creadas en <b>{{ periodo_activo.nombre }}</b>. Solo podrás marcar graduandos como Egresados hasta crear o copiar secciones en Estructura Académica.
+        </div>
+        {% endif %}
+
+        <div id="pros-lista-wrap" class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+          <div class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+            <label class="flex items-center gap-2 font-bold">
+              <input id="pros-chk-all" type="checkbox" onchange="alternarTodosPros(this.checked)">
+              <span>Estudiantes y Destino Sugerido</span>
+            </label>
+            <span id="pros-contador" class="font-semibold text-blue-700 dark:text-blue-400">0 seleccionados</span>
+          </div>
+          <div id="pros-lista" style="max-height:20rem;" class="divide-y divide-slate-200 dark:divide-slate-800 overflow-y-auto">
+            <p class="px-4 py-6 text-center opacity-75">Seleccione el período y la sección de origen para evaluar las recomendaciones.</p>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+        <button type="button" onclick="cerrarModal('modal-prosecucion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Aplicar Reinscripción</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<!-- Formulario oculto para retirar/reactivar/egresar desde Editar -->
+<form id="form-estado-inscripcion" method="POST" class="hidden">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" id="hidden-egresado-val" name="egresado" value="">
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmtNota(v) {
+    if (v == null || v === '') return '-';
+    const n = Number(v);
+    if (Number.isNaN(n)) return escHtml(v);
+    return Number.isInteger(n) ? String(n) : n.toFixed(1);
+  }
+
+  // Filtra las filas de la tabla en tiempo real sin recargar la pagina
+  function filtrarTablaEstudiantes() {
+    const q = document.getElementById('buscador-estudiantes').value.trim().toLowerCase();
+    let visibles = 0;
+    document.querySelectorAll('.fila-estudiante').forEach(tr => {
+      const ok = !q || tr.dataset.search.includes(q);
+      tr.classList.toggle('hidden', !ok);
+      if (ok) visibles++;
+    });
+    const cont = document.getElementById('contador-estudiantes');
+    if (cont) cont.textContent = visibles + ' mostrados';
+    const sinRes = document.getElementById('sin-resultados-filtro');
+    if (sinRes) sinRes.classList.toggle('hidden', visibles > 0);
+  }
+
+  // Seleccion multiple con checkboxes
+  function alternarTodos(marcar) {
+    document.querySelectorAll('.fila-estudiante').forEach(tr => {
+      if (!tr.classList.contains('hidden')) {
+        const chk = tr.querySelector('.chk-est');
+        if (chk) chk.checked = marcar;
+      }
+    });
+    actualizarSeleccion();
+  }
+
+  function limpiarSeleccion() {
+    const chkTodos = document.getElementById('chk-todos');
+    if (chkTodos) chkTodos.checked = false;
+    document.querySelectorAll('.chk-est').forEach(c => c.checked = false);
+    actualizarSeleccion();
+  }
+
+  function actualizarSeleccion() {
+    const ids = Array.from(document.querySelectorAll('.chk-est:checked')).map(c => c.value);
+    const barra = document.getElementById('barra-seleccion');
+    if (!barra) return;
+    if (ids.length === 0) {
+      barra.classList.add('hidden');
+      return;
+    }
+    barra.classList.remove('hidden');
+    document.getElementById('texto-seleccion').textContent =
+      ids.length + (ids.length === 1 ? ' estudiante seleccionado' : ' estudiantes seleccionados');
+    const joined = ids.join(',');
+    document.getElementById('btn-sel-excel').href = '/reportes/excel/nomina?ids=' + encodeURIComponent(joined);
+    document.getElementById('btn-sel-pdf-uno').href = '/reportes/certificados/lote?formato=pdf&ids=' + encodeURIComponent(joined);
+    document.getElementById('btn-sel-pdf-zip').href = '/reportes/certificados/lote?formato=zip&ids=' + encodeURIComponent(joined);
+
+    const btnVerCert = document.getElementById('btn-sel-ver-cert');
+    const btnConst = document.getElementById('btn-sel-constancia');
+    const btnBol = document.getElementById('btn-sel-boletin');
+    if (ids.length === 1) {
+      btnVerCert.href = '/reportes/certificado/' + ids[0];
+      btnVerCert.classList.remove('hidden');
+      if (btnConst) { btnConst.href = '/reportes/constancia/' + ids[0] + '/pdf'; btnConst.classList.remove('hidden'); }
+      if (btnBol) { btnBol.href = '/reportes/boletin/' + ids[0] + '/pdf'; btnBol.classList.remove('hidden'); }
+      document.getElementById('btn-sel-pdf-uno').textContent = 'Certificado PDF';
+      document.getElementById('btn-sel-pdf-zip').classList.add('hidden');
+    } else {
+      btnVerCert.classList.add('hidden');
+      if (btnConst) btnConst.classList.add('hidden');
+      if (btnBol) btnBol.classList.add('hidden');
+      document.getElementById('btn-sel-pdf-uno').textContent = '1 PDF (Todos)';
+      document.getElementById('btn-sel-pdf-zip').classList.remove('hidden');
+    }
+  }
+
+  // Abre el modal Ver cargando ficha completa + representante + notas de todos los periodos
+  async function abrirVerExpediente(idEstudiante) {
+    document.getElementById('ver-titulo').textContent = 'Cargando expediente...';
+    document.getElementById('ver-contenido').innerHTML = '<p class="text-center py-6 opacity-75">Consultando historial académico...</p>';
+    abrirModal('modal-ver-estudiante');
+    try {
+      const res = await fetch('/estudiantes/' + idEstudiante + '/expediente');
+      if (!res.ok) throw new Error('Error');
+      const data = await res.json();
+      const e = data.estudiante || {};
+      const r = data.representante || {};
+      const hist = data.historial || [];
+
+      document.getElementById('ver-titulo').textContent = (e.apellidos || '') + ' ' + (e.nombres || '');
+
+      let html = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2">
+            <div class="font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-2">Datos del Estudiante</div>
+            <div><b>Cédula:</b> ${escHtml(e.cedula || '-')}</div>
+            <div><b>Género:</b> ${e.genero === 'F' ? 'Femenino' : 'Masculino'}</div>
+            <div><b>Fecha Nacimiento:</b> ${escHtml(e.fecha_nacimiento || 'No registrada')}</div>
+            <div><b>Dirección:</b> ${escHtml(e.direccion || 'No registrada')}</div>
+          </div>
+          <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2">
+            <div class="font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-2">Representante Legal</div>
+            <div><b>Nombre:</b> ${escHtml((r.apellidos || '') + ' ' + (r.nombres || 'No registrado'))}</div>
+            <div><b>Cédula / Parentesco:</b> ${escHtml(r.cedula || '-')} · ${escHtml(r.parentesco || '-')}</div>
+            <div><b>Teléfonos:</b> ${escHtml(r.telefono || '-')}${r.telefono_trabajo ? ' / ' + escHtml(r.telefono_trabajo) : ''}</div>
+            <div><b>Correo:</b> ${escHtml(r.correo || 'No registrado')}</div>
+            <div><b>Dirección:</b> ${escHtml(r.direccion || 'No registrada')}</div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">Historial Académico y Calificaciones</div>
+      `;
+
+      if (hist.length === 0) {
+        html += '<p class="opacity-75">Sin inscripciones registradas.</p>';
+      } else {
+        const histAsc = hist.slice().sort((a, b) => (a.orden_global || 0) - (b.orden_global || 0));
+        const optsRango = histAsc.map(h =>
+          `<option value="${h.orden_global}">${escHtml(h.grado_nombre)} (${escHtml(h.periodo_nombre)})</option>`
+        ).join('');
+        const minOrd = histAsc[0].orden_global;
+        const maxOrd = histAsc[histAsc.length - 1].orden_global;
+        html += `
+          <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-end justify-between gap-2">
+            <div class="flex flex-wrap items-end gap-2">
+              <div>
+                <div class="font-bold text-black dark:text-white mb-1">Certificación Acumulada (Multi-Año)</div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <select id="exp-rango-desde" onchange="actualizarLinksHistorial(${e.id})" class="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs">${optsRango}</select>
+                  <span class="opacity-70">a</span>
+                  <select id="exp-rango-hasta" onchange="actualizarLinksHistorial(${e.id})" class="px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs">${optsRango}</select>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <a id="exp-link-hist-ver" href="/reportes/historial/${e.id}?desde=${minOrd}&hasta=${maxOrd}" class="px-2.5 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-semibold">Vista Previa</a>
+              <a id="exp-link-hist-pdf" href="/reportes/historial/${e.id}/pdf?desde=${minOrd}&hasta=${maxOrd}" class="px-2.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Descargar PDF</a>
+            </div>
+          </div>
+        `;
+        hist.forEach(h => {
+          html += `
+            <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+              <div class="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                  <span class="font-bold text-black dark:text-white">Período ${escHtml(h.periodo_nombre)}</span>
+                  <span class="opacity-75"> · ${escHtml(h.nivel_nombre)} · ${escHtml(h.grado_nombre)} "${escHtml(h.seccion_nombre)}"</span>
+                  ${h.estado === 'retirado' ? '<span style="margin-left:0.5rem;" class="px-2 py-0.5 rounded-full bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300 font-semibold">Retirado</span>' : ''}
+                </div>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="tabular-nums font-bold text-blue-700 dark:text-blue-400">Prom/Def: ${escHtml(h.promedio)}</span>
+                  <a href="/reportes/certificado/${h.id_inscripcion}" class="px-2 py-1 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-semibold">Certificado</a>
+                  <a href="/reportes/certificado/${h.id_inscripcion}/pdf" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold">PDF</a>
+                  <a href="/reportes/boletin/${h.id_inscripcion}/pdf" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold">Boletín</a>
+                  <a href="/reportes/constancia/${h.id_inscripcion}/pdf" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold">Constancia</a>
+                </div>
+              </div>
+          `;
+          if (h.tipo_escala === 'literal') {
+            const np = (h.boletin && h.boletin.primaria) || {};
+            html += `
+              <div class="p-3 text-center" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0.5rem;">
+                <div class="p-2 rounded bg-slate-50 dark:bg-slate-800/40"><div class="opacity-70">L1</div><div class="font-bold">${escHtml(np.lapso_1 || '-')}</div></div>
+                <div class="p-2 rounded bg-slate-50 dark:bg-slate-800/40"><div class="opacity-70">L2</div><div class="font-bold">${escHtml(np.lapso_2 || '-')}</div></div>
+                <div class="p-2 rounded bg-slate-50 dark:bg-slate-800/40"><div class="opacity-70">L3</div><div class="font-bold">${escHtml(np.lapso_3 || '-')}</div></div>
+                <div class="p-2 rounded bg-blue-50 dark:bg-blue-950"><div class="opacity-70">Def.</div><div class="font-bold text-blue-700 dark:text-blue-400">${escHtml(np.definitiva || '-')}</div></div>
+              </div>
+            `;
+            if (np.observaciones) {
+              html += `<div class="px-3 pb-3 opacity-80"><b>Observaciones:</b> ${escHtml(np.observaciones)}</div>`;
+            }
+          } else {
+            const mats = (h.boletin && h.boletin.secundaria) || [];
+            if (mats.length === 0) {
+              html += '<div class="p-3 opacity-75">Sin materias registradas en este grado.</div>';
+            } else {
+              html += `
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs text-left">
+                    <thead class="bg-slate-50 dark:bg-slate-800/40">
+                      <tr>
+                        <th class="px-3 py-2">Materia</th>
+                        <th class="px-2 py-2 text-center">L1</th>
+                        <th class="px-2 py-2 text-center">L2</th>
+                        <th class="px-2 py-2 text-center">L3</th>
+                        <th class="px-2 py-2 text-center">Def.</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+              `;
+              mats.forEach(m => {
+                html += `
+                  <tr>
+                    <td class="px-3 py-1.5 font-medium">${escHtml(m.materia_nombre)}</td>
+                    <td class="px-2 py-1.5 text-center tabular-nums">${fmtNota(m.lapso_1)}</td>
+                    <td class="px-2 py-1.5 text-center tabular-nums">${fmtNota(m.lapso_2)}</td>
+                    <td class="px-2 py-1.5 text-center tabular-nums">${fmtNota(m.lapso_3)}</td>
+                    <td class="px-2 py-1.5 text-center tabular-nums font-bold">${fmtNota(m.definitiva)}</td>
+                  </tr>
+                `;
+              });
+              html += '</tbody></table></div>';
+            }
+          }
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+      document.getElementById('ver-contenido').innerHTML = html;
+      const selD = document.getElementById('exp-rango-desde');
+      const selH = document.getElementById('exp-rango-hasta');
+      if (selD && selH && selH.options.length > 0) {
+        selD.selectedIndex = 0;
+        selH.selectedIndex = selH.options.length - 1;
+        actualizarLinksHistorial(e.id);
+      }
+    } catch (_) {
+      document.getElementById('ver-contenido').innerHTML = '<p class="text-center py-6 text-red-700 dark:text-red-400">No se pudo cargar el expediente.</p>';
+    }
+  }
+
+  function actualizarLinksHistorial(idEstudiante) {
+    const selD = document.getElementById('exp-rango-desde');
+    const selH = document.getElementById('exp-rango-hasta');
+    const lkVer = document.getElementById('exp-link-hist-ver');
+    const lkPdf = document.getElementById('exp-link-hist-pdf');
+    if (!selD || !selH || !lkVer || !lkPdf) return;
+    const d = Number(selD.value);
+    const h = Number(selH.value);
+    const desde = Math.min(d, h);
+    const hasta = Math.max(d, h);
+    lkVer.href = `/reportes/historial/${idEstudiante}?desde=${desde}&hasta=${hasta}`;
+    lkPdf.href = `/reportes/historial/${idEstudiante}/pdf?desde=${desde}&hasta=${hasta}`;
+  }
+
+  let _editEstadoActual = 'activo';
+  let _editNombreActual = '';
+  let _editIdInscripcion = '';
+  let _editIdEstudiante = '';
+  let _editEgresado = false;
+
+  // Precarga el modal de edicion con los datos actuales del estudiante
+  function abrirEditarEstudiante(est) {
+    document.getElementById('form-editar-estudiante').action = '/estudiantes/editar/' + est.id;
+    document.getElementById('ed-id-inscripcion').value = est.id_inscripcion || '';
+    document.getElementById('ed-cedula').value = est.cedula || '';
+    document.getElementById('ed-seccion').value = est.id_seccion || '';
+    document.getElementById('ed-condicion').value = est.condicion || 'regular';
+    document.getElementById('ed-apellidos').value = est.apellidos || '';
+    document.getElementById('ed-nombres').value = est.nombres || '';
+    document.getElementById('ed-genero').value = est.genero || 'M';
+    document.getElementById('ed-fnac').value = est.fecha_nacimiento ? String(est.fecha_nacimiento).slice(0, 10) : '';
+    document.getElementById('ed-dir').value = est.direccion || '';
+    document.getElementById('ed-rep-ci').value = est.rep_cedula || '';
+    document.getElementById('ed-rep-par').value = est.rep_parentesco || 'Representante Legal';
+    document.getElementById('ed-rep-tel').value = est.rep_telefono || '';
+    document.getElementById('ed-rep-telt').value = est.rep_telefono_trabajo || '';
+    document.getElementById('ed-rep-cor').value = est.rep_correo || '';
+    document.getElementById('ed-rep-dir').value = est.rep_direccion || '';
+    document.getElementById('ed-rep-ape').value = est.rep_apellidos || '';
+    document.getElementById('ed-rep-nom').value = est.rep_nombres || '';
+
+    _editEstadoActual = est.estado || 'activo';
+    _editNombreActual = (est.apellidos || '') + ' ' + (est.nombres || '');
+    _editIdInscripcion = est.id_inscripcion || '';
+    _editIdEstudiante = est.id || '';
+    _editEgresado = Boolean(est.egresado);
+
+    const secWrap = document.getElementById('ed-seccion-wrap');
+    const condWrap = document.getElementById('ed-condicion-wrap');
+    const estWrap = document.getElementById('ed-estado-wrap');
+    if (secWrap) secWrap.classList.toggle('hidden', !_editIdInscripcion);
+    if (condWrap) condWrap.classList.toggle('hidden', !_editIdInscripcion);
+    if (estWrap) estWrap.classList.toggle('hidden', !_editIdInscripcion);
+
+    const txtEst = document.getElementById('ed-estado-texto');
+    const btnEst = document.getElementById('ed-btn-estado');
+    if (_editEstadoActual === 'activo') {
+      txtEst.textContent = 'Actualmente Activo en el período.';
+      btnEst.textContent = 'Retirar del Período';
+      btnEst.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-300 text-red-700 dark:border-red-900 dark:text-red-400';
+    } else {
+      txtEst.textContent = 'Actualmente Retirado en el período.';
+      btnEst.textContent = 'Reactivar Inscripción';
+      btnEst.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400';
+    }
+
+    const txtEgr = document.getElementById('ed-egreso-texto');
+    const btnEgr = document.getElementById('ed-btn-egreso');
+    if (_editEgresado) {
+      txtEgr.textContent = 'Marcado como Egresado (graduado / no aparece como pendiente de reinscribir).';
+      btnEgr.textContent = 'Restaurar a Regular';
+      btnEgr.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700';
+    } else {
+      txtEgr.textContent = 'Estudiante regular del plantel.';
+      btnEgr.textContent = 'Marcar como Egresado';
+      btnEgr.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400';
+    }
+    abrirModal('modal-editar-estudiante');
+  }
+
+  function cambiarEstadoDesdeEditar() {
+    const form = document.getElementById('form-estado-inscripcion');
+    if (_editEstadoActual === 'activo') {
+      form.action = '/estudiantes/retirar/' + _editIdInscripcion;
+      confirmarEnvio(form, '¿Marcar a ' + _editNombreActual + ' como retirado en este período?');
+    } else {
+      form.action = '/estudiantes/reactivar/' + _editIdInscripcion;
+      confirmarEnvio(form, '¿Reactivar la inscripción de ' + _editNombreActual + '?');
+    }
+  }
+
+  function cambiarEgresoDesdeEditar() {
+    const form = document.getElementById('form-estado-inscripcion');
+    document.getElementById('hidden-egresado-val').value = _editEgresado ? '0' : '1';
+    form.action = '/estudiantes/egresar/' + _editIdEstudiante;
+    confirmarEnvio(
+      form,
+      _editEgresado
+        ? '¿Restaurar a ' + _editNombreActual + ' como estudiante regular?'
+        : '¿Marcar a ' + _editNombreActual + ' como egresado (graduado)?'
+    );
+  }
+
+  // Prosecucion / Reinscripcion Masiva Inteligente
+  const SECCIONES_ACTIVO_PROS = {{ secciones | tojson }};
+
+  function abrirModalProsecucion() {
+    const selPer = document.getElementById('pros-periodo-origen');
+    if (selPer && !selPer.value && selPer.options.length > 1) {
+      selPer.selectedIndex = 1;
+      cargarSeccionesOrigen();
+    }
+    abrirModal('modal-prosecucion');
+  }
+
+  function toggleCondProsRow(selDest) {
+    const row = selDest.closest('.pros-row');
+    if (!row) return;
+    const condSel = row.querySelector('.pros-cond');
+    if (condSel) condSel.classList.toggle('hidden', selDest.value === 'EGRESAR');
+  }
+
+  async function cargarSeccionesOrigen() {
+    const pid = (document.getElementById('pros-periodo-origen') || {}).value;
+    const selSec = document.getElementById('pros-seccion-origen');
+    const lista = document.getElementById('pros-lista');
+    if (!selSec) return;
+    selSec.innerHTML = '<option value="">Cargando...</option>';
+    if (lista) lista.innerHTML = '<p class="px-4 py-6 text-center opacity-75">Seleccione una sección de origen.</p>';
+    if (!pid) {
+      selSec.innerHTML = '<option value="">-- Seleccione sección --</option>';
+      return;
+    }
+    try {
+      const res = await fetch('/academico/api/secciones?id_periodo=' + encodeURIComponent(pid));
+      const data = await res.json();
+      const secs = data.secciones || [];
+      if (secs.length === 0) {
+        selSec.innerHTML = '<option value="">-- Sin secciones en este período --</option>';
+        return;
+      }
+      selSec.innerHTML = '<option value="">-- Seleccione sección --</option>' +
+        secs.map(s => `<option value="${s.id}">${escHtml(s.nivel_nombre)} · ${escHtml(s.grado_nombre)} "${escHtml(s.nombre)}"</option>`).join('');
+    } catch (_) {
+      selSec.innerHTML = '<option value="">Error al cargar secciones</option>';
+    }
+  }
+
+  async function cargarCandidatosProsecucion() {
+    const pid = (document.getElementById('pros-periodo-origen') || {}).value;
+    const sid = (document.getElementById('pros-seccion-origen') || {}).value;
+    const lista = document.getElementById('pros-lista');
+    if (!lista) return;
+    if (!pid || !sid) {
+      lista.innerHTML = '<p class="px-4 py-6 text-center opacity-75">Seleccione el período y la sección de origen.</p>';
+      actualizarContadorPros();
+      return;
+    }
+    lista.innerHTML = '<p class="px-4 py-6 text-center opacity-75">Evaluando recomendaciones académicas...</p>';
+    try {
+      const res = await fetch('/estudiantes/api/prosecucion?id_periodo_origen=' + encodeURIComponent(pid) + '&id_seccion_origen=' + encodeURIComponent(sid));
+      const data = await res.json();
+      const cands = data.candidatos || [];
+      if (cands.length === 0) {
+        lista.innerHTML = '<p class="px-4 py-6 text-center opacity-75">Esta sección no tiene estudiantes activos.</p>';
+        actualizarContadorPros();
+        return;
+      }
+      lista.innerHTML = cands.map(c => {
+        const rec = c.recomendacion || {};
+        const deshab = c.ya_inscrito_destino;
+        const autoMarcar = !deshab && !c.egresado && !rec.evaluacion_incompleta && (rec.accion_sugerida === 'egresar' || Boolean(rec.id_seccion_sugerida));
+        const destDefault = rec.accion_sugerida === 'egresar' ? 'EGRESAR' : (rec.id_seccion_sugerida ? String(rec.id_seccion_sugerida) : '');
+        const condDefault = rec.condicion_sugerida || 'regular';
+
+        let badgeClass = 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900';
+        if (rec.tipo_badge === 'danger') {
+          badgeClass = 'bg-red-50 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-900';
+        } else if (rec.tipo_badge === 'warn' || rec.tipo_badge === 'neutral') {
+          badgeClass = 'bg-slate-100 dark:bg-slate-800 text-black dark:text-white border border-slate-300 dark:border-slate-700';
+        }
+
+        const secsPerm = (rec.tiene_historial && rec.ultimo_nivel_orden != null && rec.ultimo_grado_orden != null)
+          ? SECCIONES_ACTIVO_PROS.filter(s => {
+              const sN = Number(s.nivel_orden != null ? s.nivel_orden : 0);
+              const sG = Number(s.grado_orden != null ? s.grado_orden : 0);
+              const uN = Number(rec.ultimo_nivel_orden);
+              const uG = Number(rec.ultimo_grado_orden);
+              return rec.solo_superiores
+                ? (sN > uN || (sN === uN && sG > uG))
+                : (sN > uN || (sN === uN && sG >= uG));
+            })
+          : SECCIONES_ACTIVO_PROS;
+
+        const optsSec = secsPerm.map(s =>
+          `<option value="${s.id}" ${destDefault === String(s.id) ? 'selected' : ''}>${escHtml(s.grado_nombre)} "${escHtml(s.nombre)}"</option>`
+        ).join('');
+
+        return `
+          <div class="pros-row px-4 py-3 flex flex-wrap items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 ${deshab ? 'opacity-60' : ''}" data-eid="${c.id_estudiante}">
+            <div class="flex items-start gap-2 min-w-0 flex-1">
+              <input type="checkbox" class="chk-pros mt-1" value="${c.id_estudiante}" ${deshab ? 'disabled' : (autoMarcar ? 'checked' : '')} onchange="actualizarContadorPros()">
+              <div class="min-w-0">
+                <div class="font-bold truncate">${escHtml(c.apellidos)} ${escHtml(c.nombres)}</div>
+                <div class="tabular-nums opacity-70">${escHtml(c.cedula)} · Prom: <b>${escHtml(c.promedio)}</b></div>
+                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                  ${deshab
+                    ? `<span class="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-semibold">Ya en ${escHtml(c.seccion_destino_actual)}</span>`
+                    : `<span class="px-2 py-0.5 rounded-full font-semibold ${badgeClass}">${escHtml(rec.etiqueta || 'Evaluar')}</span>`
+                  }
+                  ${rec.materias_aplazadas && rec.materias_aplazadas.length ? `<span class="opacity-75">(${escHtml(rec.materias_aplazadas.join(', '))})</span>` : ''}
+                </div>
+              </div>
+            </div>
+            ${deshab ? '' : `
+            <div class="flex flex-wrap items-center gap-2 shrink-0">
+              <select class="pros-dest px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium" onchange="toggleCondProsRow(this)">
+                <option value="">-- Elegir destino --</option>
+                ${optsSec}
+                <option value="EGRESAR" ${destDefault === 'EGRESAR' ? 'selected' : ''}>Marcar como Egresado</option>
+              </select>
+              <select class="pros-cond ${destDefault === 'EGRESAR' ? 'hidden ' : ''}px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+                <option value="regular" ${condDefault === 'regular' ? 'selected' : ''}>Regular</option>
+                <option value="materia_pendiente" ${condDefault === 'materia_pendiente' ? 'selected' : ''}>Mat. Pendiente</option>
+                <option value="repitiente" ${condDefault === 'repitiente' ? 'selected' : ''}>Repitiente</option>
+                <option value="reingreso" ${condDefault === 'reingreso' ? 'selected' : ''}>Reingreso</option>
+              </select>
+            </div>
+            `}
+          </div>
+        `;
+      }).join('');
+      const chkAll = document.getElementById('pros-chk-all');
+      if (chkAll) chkAll.checked = false;
+      actualizarContadorPros();
+    } catch (_) {
+      lista.innerHTML = '<p class="px-4 py-6 text-center text-red-700 dark:text-red-400">Error al cargar estudiantes.</p>';
+    }
+  }
+
+  function alternarTodosPros(marcar) {
+    document.querySelectorAll('.chk-pros:not(:disabled)').forEach(c => { c.checked = marcar; });
+    actualizarContadorPros();
+  }
+
+  function actualizarContadorPros() {
+    const n = document.querySelectorAll('.chk-pros:checked').length;
+    const el = document.getElementById('pros-contador');
+    if (el) el.textContent = n + (n === 1 ? ' seleccionado' : ' seleccionados');
+  }
+
+  const formPros = document.getElementById('form-prosecucion');
+  if (formPros) {
+    formPros.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const decisiones = [];
+      let faltaDestino = false;
+      document.querySelectorAll('.pros-row').forEach(row => {
+        const chk = row.querySelector('.chk-pros');
+        if (!chk || !chk.checked || chk.disabled) return;
+        const dest = (row.querySelector('.pros-dest') || {}).value || '';
+        const cond = (row.querySelector('.pros-cond') || {}).value || 'regular';
+        if (!dest) {
+          faltaDestino = true;
+          return;
+        }
+        decisiones.push({
+          id_estudiante: parseInt(row.dataset.eid, 10),
+          accion: dest === 'EGRESAR' ? 'egresar' : 'inscribir',
+          id_seccion_destino: dest === 'EGRESAR' ? null : parseInt(dest, 10),
+          condicion: cond
+        });
+      });
+      if (faltaDestino) {
+        alert('Todos los estudiantes marcados deben tener un destino seleccionado.');
+        return;
+      }
+      if (decisiones.length === 0) {
+        alert('Seleccione al menos un estudiante para aplicar la reinscripción.');
+        return;
+      }
+      document.getElementById('pros-decisiones-json').value = JSON.stringify(decisiones);
+      try {
+        const resp = await fetch(formPros.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'fetch' },
+          body: new FormData(formPros)
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          alert(data.mensaje || 'No se pudo completar la prosecución.');
+          return;
+        }
+        cerrarModal('modal-prosecucion');
+        window.location.reload();
+      } catch (_) {
+        alert('Error de conexión al procesar la prosecución.');
+      }
+    });
+  }
+</script>
+{% endblock %}

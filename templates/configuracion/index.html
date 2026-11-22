@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Configuración Institucional{% endblock %}
+{% block header_title %}Configuración del Plantel y Planillas{% endblock %}
+{% block content %}
+<style>
+  .config-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  @media (min-width: 1024px) {
+    .config-layout {
+      grid-template-columns: 240px minmax(0, 1fr);
+      align-items: start;
+    }
+    .config-sidebar-sticky {
+      position: sticky;
+      top: 5.25rem;
+    }
+  }
+</style>
+
+<form id="form-configuracion" method="POST" class="config-layout">
+  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+
+  <!-- Sub-navegacion lateral -->
+  <aside class="config-sidebar-sticky bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 space-y-3">
+    <div class="px-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+      <div class="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Ajustes del Plantel</div>
+      <div class="text-xs opacity-75 mt-0.5 truncate">{{ cfg.get('nombre_corto', 'Plantel') }}</div>
+    </div>
+
+    <nav class="space-y-1 text-xs font-semibold">
+      <button type="button" onclick="mostrarTabCfg('identidad')" id="cfg-btn-identidad" class="cfg-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-blue-700 text-white text-left">
+        <span>1. Identidad del Plantel</span>
+      </button>
+      <button type="button" onclick="mostrarTabCfg('certificados')" id="cfg-btn-certificados" class="cfg-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>2. Encabezados y Pie Legal</span>
+      </button>
+      <button type="button" onclick="mostrarTabCfg('parametros')" id="cfg-btn-parametros" class="cfg-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>3. Parámetros de Planillas</span>
+      </button>
+      <button type="button" onclick="mostrarTabCfg('respaldo')" id="cfg-btn-respaldo" class="cfg-tab-btn w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-black dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-left">
+        <span>4. Respaldo de Datos</span>
+      </button>
+    </nav>
+
+    <div class="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+      <div id="cfg-badge-cambios" class="hidden px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 text-center">
+        Cambios sin guardar
+      </div>
+      <button type="submit" class="w-full px-4 py-2.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">
+        Guardar Configuración
+      </button>
+    </div>
+  </aside>
+
+  <!-- Contenido principal -->
+  <div class="min-w-0 space-y-5">
+    <!-- 1. Identidad del Plantel -->
+    <section id="cfg-tab-identidad" class="cfg-tab-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
+      <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 class="text-sm font-bold">1. Identidad del Plantel</h2>
+        <p class="text-xs opacity-75">Datos institucionales que aparecen en la barra lateral y documentos oficiales.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="block text-xs font-semibold mb-1">Nombre Oficial del Plantel *</label><input type="text" name="nombre_plantel" value="{{ cfg.get('nombre_plantel', '') }}" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Nombre Corto (Barra Lateral) *</label><input type="text" name="nombre_corto" value="{{ cfg.get('nombre_corto', '') }}" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Dependencia</label><input type="text" name="dependencia" value="{{ cfg.get('dependencia', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Director(a)</label><input type="text" name="director" value="{{ cfg.get('director', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">RIF Institucional</label><input type="text" name="rif" value="{{ cfg.get('rif', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs font-semibold mb-1">Código DEA</label><input type="text" name="codigo_dea" value="{{ cfg.get('codigo_dea', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+          <div><label class="block text-xs font-semibold mb-1">Código Estadístico</label><input type="text" name="codigo_estadistico" value="{{ cfg.get('codigo_estadistico', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        </div>
+        <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1">Dirección Completa</label><input type="text" name="direccion" value="{{ cfg.get('direccion', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+      </div>
+    </section>
+
+    <!-- 2. Encabezados y Pie Legal de Certificados -->
+    <section id="cfg-tab-certificados" class="cfg-tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
+      <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 class="text-sm font-bold">2. Encabezados y Pie Legal de Certificados</h2>
+        <p class="text-xs opacity-75">Membretes y textos legales utilizados al exportar boletas, constancias y certificados PDF.</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="block text-xs font-semibold mb-1">Encabezado País</label><input type="text" name="encabezado_pais" value="{{ cfg.get('encabezado_pais', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Encabezado Ministerio</label><input type="text" name="encabezado_ministerio" value="{{ cfg.get('encabezado_ministerio', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Título que Otorga (Media General)</label><input type="text" name="titulo_media" value="{{ cfg.get('titulo_media', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label class="block text-xs font-semibold mb-1">Centro de Desarrollo de Calidad Educativa</label><input type="text" name="centro_calidad" value="{{ cfg.get('centro_calidad', '') }}" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div class="md:col-span-2"><label class="block text-xs font-semibold mb-1">Pie Fiscal / Legal</label><textarea name="pie_fiscal" rows="3" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{{ cfg.get('pie_fiscal', '') }}</textarea></div>
+      </div>
+    </section>
+
+    <!-- 3. Parametros de Planillas (Formato MPPE explicito y con vista previa en vivo) -->
+    <section id="cfg-tab-parametros" class="cfg-tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-5">
+      <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 class="text-sm font-bold">3. Parámetros por Defecto para Certificados y Planillas MPPE</h2>
+        <p class="text-xs opacity-75 mt-0.5">
+          Estos valores se rellenan automáticamente en las columnas <b>T.E.</b>, <b>Mes</b> y <b>Año</b> de las Certificaciones de Calificaciones de Media General cuando una materia no tenga una fecha especial cargada.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label for="cfg-te-defecto" class="block text-xs font-semibold mb-1">Tipo de Evaluación (T.E.)</label>
+          <select id="cfg-te-defecto" name="te_defecto" onchange="actualizarPreviewPlanilla()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% set te_actual = cfg.get('te_defecto', 'F') %}
+            <option value="F" {{ 'selected' if te_actual == 'F' }}>F — Final (Regular)</option>
+            <option value="R" {{ 'selected' if te_actual == 'R' }}>R — Revisión (Reparación)</option>
+            <option value="A" {{ 'selected' if te_actual == 'A' }}>A — Materia Pendiente</option>
+            <option value="M" {{ 'selected' if te_actual == 'M' }}>M — Equivalencia / Transferencia</option>
+            <option value="***" {{ 'selected' if te_actual == '***' }}>*** — Exonerada / No cursa</option>
+          </select>
+          <p class="wiz-field-hint">En la mayoría de las certificaciones regulares se usa <b>F (Final)</b>.</p>
+        </div>
+
+        <div>
+          <label for="cfg-mes-defecto" class="block text-xs font-semibold mb-1">Mes de Cierre Escolar</label>
+          {% set mes_actual = cfg.get('mes_defecto', '07') %}
+          <select id="cfg-mes-defecto" name="mes_defecto" onchange="actualizarPreviewPlanilla()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for num, nom in [('01','01 · Enero'),('02','02 · Febrero'),('03','03 · Marzo'),('04','04 · Abril'),('05','05 · Mayo'),('06','06 · Junio'),('07','07 · Julio (Cierre regular)'),('08','08 · Agosto (Revisión)'),('09','09 · Septiembre'),('10','10 · Octubre'),('11','11 · Noviembre'),('12','12 · Diciembre')] %}
+            <option value="{{ num }}" {{ 'selected' if mes_actual == num }}>{{ nom }}</option>
+            {% endfor %}
+          </select>
+          <p class="wiz-field-hint">Mes en el que culminan y se registran las notas definitivas.</p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label for="cfg-anio-defecto" class="block text-xs font-semibold">Año de Cierre</label>
+            {% if anio_sugerido %}
+            <button type="button" onclick="usarAnioPeriodoActivo('{{ anio_sugerido }}')" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">
+              Usar {{ anio_sugerido }}
+            </button>
+            {% endif %}
+          </div>
+          <input id="cfg-anio-defecto" type="number" name="anio_defecto" min="2000" max="2099" value="{{ cfg.get('anio_defecto', '2027') }}" oninput="actualizarPreviewPlanilla()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+          <p class="wiz-field-hint">Año de culminación del período activo{% if periodo_activo %} ({{ periodo_activo.nombre }}){% endif %}.</p>
+        </div>
+      </div>
+
+      <!-- Vista previa en vivo de como aparece en el PDF oficial -->
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4 space-y-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">Vista previa en la Certificación PDF</span>
+          <span class="text-xs opacity-70">Así se rellenará cada materia automáticamente</span>
+        </div>
+        <div class="overflow-x-auto bg-white text-black rounded-lg border border-slate-300">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-100 border-b border-slate-300 text-center">
+                <th class="px-3 py-2 text-left">ÁREA DE FORMACIÓN</th>
+                <th class="px-2 py-2">Nº</th>
+                <th class="px-2 py-2">LETRAS</th>
+                <th class="px-2 py-2">T.E.</th>
+                <th class="px-2 py-2">MES</th>
+                <th class="px-2 py-2">AÑO</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="px-3 py-2 font-medium">Matemáticas</td>
+                <td class="px-2 py-2 text-center font-bold tabular-nums">18</td>
+                <td class="px-2 py-2 text-center">DIECIOCHO</td>
+                <td id="prev-mppe-te" class="px-2 py-2 text-center font-bold text-blue-700">{{ cfg.get('te_defecto', 'F') }}</td>
+                <td id="prev-mppe-mes" class="px-2 py-2 text-center font-bold text-blue-700 tabular-nums">{{ cfg.get('mes_defecto', '07') }}</td>
+                <td id="prev-mppe-anio" class="px-2 py-2 text-center font-bold text-blue-700 tabular-nums">{{ cfg.get('anio_defecto', '2027') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-xs opacity-75">
+          <b>Significado de T.E. (Tipo de Evaluación MPPE):</b> <b>F</b> = Final · <b>R</b> = Revisión · <b>A</b> = Materia Pendiente · <b>M</b> = Equivalencia · <b>***</b> = No cursa / Exonerada.
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Respaldo Completo de Base de Datos (Solo Administrador) -->
+    <section id="cfg-tab-respaldo" class="cfg-tab-panel hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 space-y-4">
+      <div class="border-b border-slate-200 dark:border-slate-800 pb-3">
+        <h2 class="text-sm font-bold">4. Respaldo de Base de Datos (Solo Administrador)</h2>
+        <p class="text-xs opacity-75 mt-0.5">Descarga una copia completa en formato <code>.sql</code> con toda la estructura, matrícula, docentes, horarios y calificaciones históricas del plantel.</p>
+      </div>
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="space-y-1 text-xs max-w-lg">
+          <div class="font-bold text-black dark:text-white">Copia de seguridad local (.sql)</div>
+          <p class="opacity-75">Recomendado al finalizar cada lapso, cierre de período escolar o antes de realizar cambios masivos. Compatible con phpMyAdmin (XAMPP) y MariaDB/MySQL.</p>
+        </div>
+        <a href="{{ url_for('configuracion.respaldo_sql') }}" class="btn px-4 py-2.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold shrink-0">
+          Descargar Respaldo (.sql)
+        </a>
+      </div>
+    </section>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function mostrarToastCfg(msg, tipo) {
+    let cont = document.getElementById('toast-container');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'toast-container';
+      cont.className = 'no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none';
+      document.body.appendChild(cont);
+    }
+    const item = document.createElement('div');
+    const esErr = tipo === 'error';
+    item.className = 'toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ' +
+      (esErr
+        ? 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100'
+        : 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white');
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Cerrar';
+    btn.className = 'text-xs font-bold opacity-80 hover:opacity-100 shrink-0';
+    btn.onclick = () => cerrarToast(item);
+    item.appendChild(span);
+    item.appendChild(btn);
+    cont.appendChild(item);
+    requestAnimationFrame(() => item.classList.add('is-visible'));
+    setTimeout(() => { if (item.parentElement) cerrarToast(item); }, 4000);
+  }
+
+  function mostrarTabCfg(nombre) {
+    document.querySelectorAll('.cfg-tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.cfg-tab-btn').forEach(b => {
+      b.classList.remove('bg-blue-700', 'text-white');
+      b.classList.add('text-black', 'dark:text-white');
+    });
+    const panel = document.getElementById('cfg-tab-' + nombre);
+    const btn = document.getElementById('cfg-btn-' + nombre);
+    if (!panel || !btn) return;
+    panel.classList.remove('hidden');
+    btn.classList.add('bg-blue-700', 'text-white');
+    btn.classList.remove('text-black', 'dark:text-white');
+    localStorage.setItem('config_tab', nombre);
+  }
+
+  const formCfg = document.getElementById('form-configuracion');
+  const badgeCfg = document.getElementById('cfg-badge-cambios');
+  if (formCfg) {
+    formCfg.addEventListener('input', () => {
+      if (badgeCfg) badgeCfg.classList.remove('hidden');
+    });
+    formCfg.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      try {
+        const resp = await fetch(formCfg.action || window.location.href, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'fetch' },
+          body: new FormData(formCfg)
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          mostrarToastCfg(data.mensaje || 'No se pudo guardar la configuración.', 'error');
+          return;
+        }
+        if (badgeCfg) badgeCfg.classList.add('hidden');
+        mostrarToastCfg(data.mensaje || 'Configuración guardada.', 'ok');
+      } catch (_) {
+        mostrarToastCfg('Error de conexión al guardar.', 'error');
+      }
+    });
+  }
+
+  function actualizarPreviewPlanilla() {
+    const te = document.getElementById('cfg-te-defecto');
+    const mes = document.getElementById('cfg-mes-defecto');
+    const anio = document.getElementById('cfg-anio-defecto');
+    const pTe = document.getElementById('prev-mppe-te');
+    const pMes = document.getElementById('prev-mppe-mes');
+    const pAnio = document.getElementById('prev-mppe-anio');
+    if (pTe && te) pTe.textContent = te.value || 'F';
+    if (pMes && mes) pMes.textContent = mes.value || '07';
+    if (pAnio && anio) pAnio.textContent = anio.value || '2027';
+  }
+
+  function usarAnioPeriodoActivo(anio) {
+    const el = document.getElementById('cfg-anio-defecto');
+    if (!el) return;
+    el.value = anio;
+    actualizarPreviewPlanilla();
+    if (badgeCfg) badgeCfg.classList.remove('hidden');
+  }
+
+  mostrarTabCfg(localStorage.getItem('config_tab') || 'identidad');
+  actualizarPreviewPlanilla();
+</script>
+{% endblock %}

@@ -1,0 +1,1080 @@
+<!-- Modal Unificado de Inscripcion y Reinscripcion por Pasos (reutilizable en Estudiantes e Inicio) -->
+<div id="modal-nuevo-estudiante" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-2xl w-full shadow-xl overflow-hidden">
+    <!-- Cabecera -->
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div id="new-est-subtitulo" class="text-xs uppercase tracking-wider text-blue-300 font-semibold">
+          Matrícula{% if periodo_global %} · {{ periodo_global.nombre }}{% endif %}
+        </div>
+        <h3 id="new-est-titulo" class="text-base font-bold text-white mt-0.5 truncate">Inscribir / Reinscribir Estudiante</h3>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span id="wiz-paso-badge" class="tabular-nums px-2.5 py-1 rounded-full text-xs font-semibold text-blue-200" style="background:rgba(255,255,255,0.12);">Paso 1 de 3</span>
+        <button type="button" onclick="cerrarModal('modal-nuevo-estudiante')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Indicador horizontal secuencial (informativo, no botones) -->
+    <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+      <ol class="wiz-stepper" aria-label="Progreso de inscripción">
+        <li id="wiz-ind-1" class="wiz-step-item" data-state="active" aria-current="step">
+          <span class="wiz-step-dot" aria-hidden="true">
+            <span class="wiz-icon-num">1</span>
+            <svg class="wiz-icon-check" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </span>
+          <span class="wiz-step-label">Estudiante</span>
+        </li>
+        <li id="wiz-conn-1" class="wiz-connector" data-filled="false" aria-hidden="true">
+          <span class="wiz-connector-fill"></span>
+        </li>
+        <li id="wiz-ind-2" class="wiz-step-item" data-state="pending">
+          <span class="wiz-step-dot" aria-hidden="true">
+            <span class="wiz-icon-num">2</span>
+            <svg class="wiz-icon-check" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </span>
+          <span class="wiz-step-label">Representante</span>
+        </li>
+        <li id="wiz-conn-2" class="wiz-connector" data-filled="false" aria-hidden="true">
+          <span class="wiz-connector-fill"></span>
+        </li>
+        <li id="wiz-ind-3" class="wiz-step-item" data-state="pending">
+          <span class="wiz-step-dot" aria-hidden="true">
+            <span class="wiz-icon-num">3</span>
+            <svg class="wiz-icon-check" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </span>
+          <span class="wiz-step-label">Año y Sección</span>
+        </li>
+      </ol>
+    </div>
+
+    <form id="form-nuevo-estudiante" method="POST" action="{{ url_for('estudiantes.guardar') }}" novalidate>
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      {% if origen_modal_estudiante %}
+      <input type="hidden" name="next" value="{{ origen_modal_estudiante }}">
+      {% endif %}
+
+      <div id="wiz-scroll-body" class="p-6 max-h-[72vh] overflow-y-auto space-y-4">
+        {% if not secciones %}
+        <div class="px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-black dark:text-white text-xs">
+          <b>No hay secciones editables en el período escolar activo.</b>
+          {% if usuario_actual and usuario_actual.rol == 'admin' %}
+          Cree o copie secciones en <a href="{{ url_for('academico.index') }}" class="underline font-bold text-blue-700 dark:text-blue-400">Estructura Académica</a> antes de inscribir.
+          {% else %}
+          Solicite al Administrador crear las secciones del período activo o verificar que el período no esté cerrado.
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Aviso breve si intenta avanzar con campos invalidos -->
+        <div id="wiz-error" role="alert" class="hidden px-4 py-2.5 rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 text-xs font-medium"></div>
+
+        <!-- PASO 1: ESTUDIANTE + BUSCADOR DE REINSCRIPCION -->
+        <div id="wiz-step-1" class="wiz-step-panel space-y-4">
+          <!-- Buscador rapido para reinscripcion -->
+          <div class="border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/60 rounded-lg p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <label for="buscador-reinscripcion" class="text-xs font-bold text-blue-800 dark:text-blue-300">
+                ¿Ya estudió en el plantel? Búscalo para reinscribir
+              </label>
+              <button type="button" id="btn-limpiar-reinscripcion" onclick="limpiarSeleccionReinscripcion()" class="hidden text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">
+                Limpiar / Nuevo ingreso
+              </button>
+            </div>
+            <div class="relative">
+              <input
+                id="buscador-reinscripcion"
+                type="text"
+                autocomplete="off"
+                oninput="programarBusquedaReinscripcion(this.value)"
+                placeholder="Buscar por C.I. estudiante o representante, nombre, apellido o última sección..."
+                class="wiz-input w-full px-3 py-2 rounded-lg border border-blue-300 dark:border-blue-800 bg-white dark:bg-slate-800 text-xs"
+              >
+              <div id="resultados-reinscripcion" style="max-height:14rem;" class="hidden absolute left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl z-30 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800 text-xs"></div>
+            </div>
+            <div id="chip-reinscripcion" class="hidden px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 text-emerald-800 dark:text-emerald-300 text-xs"></div>
+          </div>
+
+          <!-- Formulario Paso 1: Datos del Estudiante -->
+          <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">Paso 1 · Datos del Estudiante</div>
+                <p class="text-xs opacity-70 mt-0.5">Los campos marcados con <b>*</b> son obligatorios para continuar.</p>
+              </div>
+              <span id="est-lookup-status" class="hidden text-xs font-semibold text-emerald-700 dark:text-emerald-400"></span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="new-est-ci" class="block text-xs font-semibold mb-1">Cédula / Cédula Escolar <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-est-ci" type="text" name="cedula" maxlength="16" autocomplete="off" placeholder="Ej. V-30123456" aria-describedby="err-new-est-ci" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+                <p id="err-new-est-ci" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-est-gen" class="block text-xs font-semibold mb-1">Género</label>
+                <select id="new-est-gen" name="genero" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
+                </select>
+              </div>
+              <div>
+                <label for="new-est-ape" class="block text-xs font-semibold mb-1">Apellidos <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-est-ape" type="text" name="apellidos" maxlength="80" autocomplete="family-name" placeholder="Ej. Pérez Gómez" aria-describedby="err-new-est-ape" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-est-ape" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-est-nom" class="block text-xs font-semibold mb-1">Nombres <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-est-nom" type="text" name="nombres" maxlength="80" autocomplete="given-name" placeholder="Ej. María José" aria-describedby="err-new-est-nom" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-est-nom" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-est-fnac" class="block text-xs font-semibold mb-1">Fecha de Nacimiento</label>
+                <input id="new-est-fnac" type="date" name="fecha_nacimiento" aria-describedby="err-new-est-fnac" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+                <p id="err-new-est-fnac" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-est-dir" class="block text-xs font-semibold mb-1">Dirección de Habitación</label>
+                <input id="new-est-dir" type="text" name="direccion" maxlength="200" placeholder="Ej. Urb. Los Laureles, sector 6" aria-describedby="err-new-est-dir" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-est-dir" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PASO 2: REPRESENTANTE LEGAL -->
+        <div id="wiz-step-2" class="wiz-step-panel hidden space-y-4">
+          <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">Paso 2 · Padre / Madre o Representante Legal</div>
+                <p class="text-xs opacity-70 mt-0.5">Si es reinscripción, revisa y actualiza teléfono, correo o dirección si cambiaron.</p>
+              </div>
+              <span id="rep-lookup-status" class="hidden text-xs font-semibold text-emerald-700 dark:text-emerald-400">Representante encontrado · datos cargados</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="new-rep-ci" class="block text-xs font-semibold mb-1">Cédula Representante <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-rep-ci" type="text" name="rep_cedula" maxlength="13" autocomplete="off" placeholder="Ej. V-12345678" aria-describedby="err-new-rep-ci" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+                <p id="err-new-rep-ci" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-rep-par" class="block text-xs font-semibold mb-1">Parentesco</label>
+                <select id="new-rep-par" name="rep_parentesco" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  <option value="Madre">Madre</option>
+                  <option value="Padre">Padre</option>
+                  <option value="Representante Legal">Representante Legal</option>
+                </select>
+              </div>
+              <div>
+                <label for="new-rep-ape" class="block text-xs font-semibold mb-1">Apellidos Representante <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-rep-ape" type="text" name="rep_apellidos" maxlength="80" placeholder="Ej. Gómez Rodríguez" aria-describedby="err-new-rep-ape" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-rep-ape" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-rep-nom" class="block text-xs font-semibold mb-1">Nombres Representante <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-rep-nom" type="text" name="rep_nombres" maxlength="80" placeholder="Ej. Ana Lucía" aria-describedby="err-new-rep-nom" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-rep-nom" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-rep-tel" class="block text-xs font-semibold mb-1">Teléfono Personal <span class="text-red-700 dark:text-red-400">*</span></label>
+                <input id="new-rep-tel" type="tel" name="rep_telefono" inputmode="tel" maxlength="16" placeholder="Ej. 0414-1234567" aria-describedby="err-new-rep-tel" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+                <p id="err-new-rep-tel" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-rep-telt" class="block text-xs font-semibold mb-1">Teléfono de Trabajo</label>
+                <input id="new-rep-telt" type="tel" name="rep_telefono_trabajo" inputmode="tel" maxlength="16" placeholder="Ej. 0264-1234567" aria-describedby="err-new-rep-telt" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+                <p id="err-new-rep-telt" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-rep-cor" class="block text-xs font-semibold mb-1">Correo Electrónico</label>
+                <input id="new-rep-cor" type="email" name="rep_correo" inputmode="email" maxlength="120" placeholder="Ej. correo@dominio.com" aria-describedby="err-new-rep-cor" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-rep-cor" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-rep-dir" class="block text-xs font-semibold mb-1">Dirección del Representante</label>
+                <input id="new-rep-dir" type="text" name="rep_direccion" maxlength="200" placeholder="Ej. Urb. Los Laureles, calle 14" aria-describedby="err-new-rep-dir" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <p id="err-new-rep-dir" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PASO 3: AÑO / GRADO Y SECCION -->
+        <div id="wiz-step-3" class="wiz-step-panel hidden space-y-4">
+          <!-- Recomendacion academica al momento de reinscribir -->
+          <div id="est-rec-box" class="hidden px-4 py-3 rounded-lg border text-xs space-y-0.5">
+            <div id="est-rec-titulo" class="font-bold"></div>
+            <div id="est-rec-detalle" class="opacity-80"></div>
+          </div>
+
+          <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+            <div>
+              <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                Paso 3 · Grado / Año y Sección{% if periodo_global %} ({{ periodo_global.nombre }}){% endif %}
+              </div>
+              <p class="text-xs opacity-70 mt-0.5">Elige el grado/año, la sección disponible y la condición de ingreso del estudiante.</p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="new-est-grado" class="block text-xs font-semibold mb-1">Grado / Año <span class="text-red-700 dark:text-red-400">*</span></label>
+                <select id="new-est-grado" onchange="onCambioGradoModal()" aria-describedby="err-new-est-grado" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  <option value="">-- Seleccione Grado / Año --</option>
+                </select>
+                <p id="wiz-grado-hint" class="wiz-field-hint hidden"></p>
+                <p id="err-new-est-grado" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div>
+                <label for="new-est-sec" class="block text-xs font-semibold mb-1">Sección <span class="text-red-700 dark:text-red-400">*</span></label>
+                <select id="new-est-sec" name="id_seccion" onchange="onCambioSeccionModal()" aria-describedby="err-new-est-sec" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  <option value="">-- Seleccione Sección --</option>
+                  {% for s in secciones %}
+                  <option value="{{ s.id }}" data-grado="{{ s.id_grado_anio }}">{{ s.grado_nombre }} "{{ s.nombre }}" ({{ s.turno }})</option>
+                  {% endfor %}
+                </select>
+                <p id="err-new-est-sec" class="wiz-field-error hidden" role="alert"></p>
+              </div>
+              <div class="sm:col-span-2">
+                <label for="new-est-condicion" class="block text-xs font-semibold mb-1">Condición de Inscripción</label>
+                <select id="new-est-condicion" name="condicion" onchange="actualizarResumenWizard()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                  <option value="regular">Regular / Promovido</option>
+                  <option value="materia_pendiente">Con Materia(s) Pendiente(s)</option>
+                  <option value="repitiente">Repitiente</option>
+                  <option value="reingreso">Reingreso</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Resumen rapido de confirmacion -->
+            <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+              <div class="font-bold uppercase tracking-wide opacity-70">Resumen antes de guardar</div>
+              <div><b>Estudiante:</b> <span id="wiz-res-est">-</span></div>
+              <div><b>Representante:</b> <span id="wiz-res-rep">-</span></div>
+              <div><b>Matrícula:</b> <span id="wiz-res-dest">Por seleccionar</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pie de navegacion secuencial -->
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+        <div>
+          <button type="button" id="wiz-btn-cancelar" onclick="cerrarModal('modal-nuevo-estudiante')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Cancelar</button>
+          <button type="button" id="wiz-btn-anterior" onclick="irPasoInscripcion(_wizPasoActual - 1, false)" class="hidden px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">← Anterior</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="wiz-btn-siguiente" onclick="irPasoInscripcion(_wizPasoActual + 1, true)" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Siguiente: Representante →</button>
+          <button type="submit" id="wiz-btn-guardar" {% if not secciones %}disabled style="cursor:not-allowed;" class="hidden px-4 py-2 rounded-lg bg-blue-700 opacity-50 text-white text-xs font-semibold"{% else %}class="hidden px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold"{% endif %}>Guardar e Inscribir</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const _SECCIONES_MODAL = {{ secciones | tojson }};
+  let _seccionesPermitidasModal = _SECCIONES_MODAL.slice();
+  let _recActualModal = null;
+  let _wizPasoActual = 1;
+  let _timerBusqReinsc = null;
+  let _cacheResReinsc = [];
+
+  const _RE_NOMBRE_WIZ = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'\-]+$/;
+  const _RE_LETRAS_WIZ = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g;
+  const _RE_EMAIL_WIZ = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const _RE_TEL_VE_WIZ = /^(0412|0414|0424|0416|0426|0422|02\d{2})\d{7}$/;
+
+  const _CAMPOS_PASO = {
+    1: ['new-est-ci', 'new-est-ape', 'new-est-nom', 'new-est-fnac', 'new-est-dir'],
+    2: ['new-rep-ci', 'new-rep-ape', 'new-rep-nom', 'new-rep-tel', 'new-rep-telt', 'new-rep-cor', 'new-rep-dir'],
+    3: ['new-est-grado', 'new-est-sec'],
+  };
+
+  function _escModal(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function _normalizarFechaISO(val) {
+    if (!val) return '';
+    const s = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return '';
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function _normalizarCedulaValor(val) {
+    let crudo = String(val || '').trim().toUpperCase().replace(/[\s\.]+/g, '');
+    if (!crudo) return '';
+    if (/^\d+$/.test(crudo)) return 'V-' + crudo;
+    if (/^[VE]\d+$/.test(crudo)) return crudo[0] + '-' + crudo.slice(1);
+    return crudo;
+  }
+
+  function _formatearTelefonoValor(val) {
+    const crudo = String(val || '').trim();
+    if (!crudo) return '';
+    const digitos = crudo.replace(/[\s\-\(\)]+/g, '');
+    if (_RE_TEL_VE_WIZ.test(digitos)) {
+      return digitos.slice(0, 4) + '-' + digitos.slice(4);
+    }
+    return crudo;
+  }
+
+  function _aplicarEstadoCampo(id, errorMsg, mostrarValido) {
+    const el = document.getElementById(id);
+    const errEl = document.getElementById('err-' + id);
+    if (!el) return !errorMsg;
+    if (errorMsg) {
+      el.classList.add('is-invalid');
+      el.classList.remove('is-valid');
+      el.setAttribute('aria-invalid', 'true');
+      if (errEl) {
+        errEl.textContent = errorMsg;
+        errEl.classList.remove('hidden');
+      }
+      return false;
+    }
+    el.classList.remove('is-invalid');
+    el.removeAttribute('aria-invalid');
+    if (mostrarValido && String(el.value || '').trim() !== '') {
+      el.classList.add('is-valid');
+    } else {
+      el.classList.remove('is-valid');
+    }
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+    }
+    return true;
+  }
+
+  function limpiarErroresWizard() {
+    Object.values(_CAMPOS_PASO).flat().forEach(id => {
+      const el = document.getElementById(id);
+      const errEl = document.getElementById('err-' + id);
+      if (el) {
+        el.classList.remove('is-invalid', 'is-valid');
+        el.removeAttribute('aria-invalid');
+        delete el.dataset.touched;
+      }
+      if (errEl) {
+        errEl.textContent = '';
+        errEl.classList.add('hidden');
+      }
+    });
+    const banner = document.getElementById('wiz-error');
+    if (banner) {
+      banner.textContent = '';
+      banner.classList.add('hidden');
+    }
+  }
+
+  function validarCampoWizard(id, opciones) {
+    const opts = opciones || {};
+    const el = document.getElementById(id);
+    if (!el) return true;
+    let val = String(el.value || '').trim();
+    let error = '';
+    let esObligatorio = false;
+
+    if (id === 'new-est-ci') {
+      esObligatorio = true;
+      if (opts.normalizar && val) {
+        val = _normalizarCedulaValor(val);
+        el.value = val;
+      }
+      const norm = _normalizarCedulaValor(val);
+      if (!norm) {
+        error = 'Ingrese la cédula o cédula escolar del estudiante.';
+      } else if (!/^[VE]-\d{6,12}$/.test(norm)) {
+        error = 'Use V- o E- seguido de 6 a 12 dígitos (ej. V-30123456).';
+      }
+    } else if (id === 'new-est-ape' || id === 'new-est-nom' || id === 'new-rep-ape' || id === 'new-rep-nom') {
+      esObligatorio = true;
+      if (opts.normalizar && val) {
+        val = val.replace(/\s+/g, ' ');
+        el.value = val;
+      }
+      const nombresCampo = {
+        'new-est-ape': 'los apellidos del estudiante',
+        'new-est-nom': 'los nombres del estudiante',
+        'new-rep-ape': 'los apellidos del representante',
+        'new-rep-nom': 'los nombres del representante',
+      };
+      const letras = (val.match(_RE_LETRAS_WIZ) || []).length;
+      if (!val) {
+        error = 'Ingrese ' + nombresCampo[id] + '.';
+      } else if (val.length < 2) {
+        error = 'Debe tener al menos 2 caracteres.';
+      } else if (val.length > 80) {
+        error = 'Máximo 80 caracteres.';
+      } else if (!_RE_NOMBRE_WIZ.test(val) || letras < 2) {
+        error = 'Use solo letras y espacios (sin números ni símbolos).';
+      }
+    } else if (id === 'new-est-fnac') {
+      if (val) {
+        const partes = val.split('-').map(Number);
+        const fnac = new Date(partes[0], (partes[1] || 1) - 1, partes[2] || 1);
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        if (Number.isNaN(fnac.getTime())) {
+          error = 'Ingrese una fecha de nacimiento válida.';
+        } else if (fnac > hoy) {
+          error = 'La fecha de nacimiento no puede ser futura.';
+        } else {
+          let edad = hoy.getFullYear() - fnac.getFullYear();
+          const mDiff = hoy.getMonth() - fnac.getMonth();
+          if (mDiff < 0 || (mDiff === 0 && hoy.getDate() < fnac.getDate())) edad--;
+          if (edad < 3 || edad > 30) {
+            error = 'Verifique la fecha (edad esperada entre 3 y 30 años).';
+          }
+        }
+      }
+    } else if (id === 'new-est-dir' || id === 'new-rep-dir') {
+      if (opts.normalizar && val) {
+        val = val.replace(/\s+/g, ' ');
+        el.value = val;
+      }
+      if (val && val.length < 5) {
+        error = 'Ingrese una dirección más descriptiva (mínimo 5 caracteres).';
+      } else if (val.length > 200) {
+        error = 'Máximo 200 caracteres.';
+      }
+    } else if (id === 'new-rep-ci') {
+      esObligatorio = true;
+      if (opts.normalizar && val) {
+        val = _normalizarCedulaValor(val);
+        el.value = val;
+      }
+      const norm = _normalizarCedulaValor(val);
+      const ciEst = _normalizarCedulaValor((document.getElementById('new-est-ci') || {}).value);
+      if (!norm) {
+        error = 'Ingrese la cédula del representante legal.';
+      } else if (!/^[VE]-\d{6,9}$/.test(norm)) {
+        error = 'Use V- o E- seguido de 6 a 9 dígitos (ej. V-12345678).';
+      } else if (ciEst && norm === ciEst) {
+        error = 'La cédula del representante no puede ser igual a la del estudiante.';
+      }
+    } else if (id === 'new-rep-tel' || id === 'new-rep-telt') {
+      esObligatorio = (id === 'new-rep-tel');
+      if (opts.normalizar && val) {
+        val = _formatearTelefonoValor(val);
+        el.value = val;
+      }
+      const digitos = val.replace(/[\s\-\(\)]+/g, '');
+      if (!digitos) {
+        if (esObligatorio) error = 'Ingrese el teléfono personal del representante.';
+      } else if (!_RE_TEL_VE_WIZ.test(digitos)) {
+        error = 'Teléfono inválido. Use 11 dígitos (ej. 0414-1234567 o 0264-1234567).';
+      }
+    } else if (id === 'new-rep-cor') {
+      if (val && (val.length > 120 || !_RE_EMAIL_WIZ.test(val))) {
+        error = 'Ingrese un correo válido (ej. nombre@dominio.com).';
+      }
+    } else if (id === 'new-est-grado') {
+      esObligatorio = true;
+      if (!val) {
+        error = 'Seleccione el Grado / Año del estudiante.';
+      }
+    } else if (id === 'new-est-sec') {
+      esObligatorio = true;
+      if (!val) {
+        error = 'Seleccione una sección disponible.';
+      }
+    }
+
+    return _aplicarEstadoCampo(id, error, esObligatorio || val !== '');
+  }
+
+  function validarPasoInscripcion(paso, enfocarPrimero) {
+    const campos = _CAMPOS_PASO[paso] || [];
+    const invalidos = [];
+    campos.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.dataset.touched = '1';
+      if (!validarCampoWizard(id, { normalizar: true })) {
+        invalidos.push(id);
+      }
+    });
+
+    const banner = document.getElementById('wiz-error');
+    if (invalidos.length > 0) {
+      if (banner) {
+        banner.textContent = invalidos.length === 1
+          ? 'Revise el campo marcado en rojo antes de continuar.'
+          : `Revise los ${invalidos.length} campos marcados en rojo antes de continuar.`;
+        banner.classList.remove('hidden');
+      }
+      if (enfocarPrimero !== false) {
+        const primero = document.getElementById(invalidos[0]);
+        if (primero) {
+          primero.focus({ preventScroll: false });
+          primero.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+      return false;
+    }
+
+    if (banner) {
+      banner.textContent = '';
+      banner.classList.add('hidden');
+    }
+    return true;
+  }
+
+  function _obtenerSeccionesPermitidas(rec) {
+    if (!rec || !rec.tiene_historial || rec.ultimo_nivel_orden == null || rec.ultimo_grado_orden == null) {
+      return _SECCIONES_MODAL.slice();
+    }
+    const uN = Number(rec.ultimo_nivel_orden);
+    const uG = Number(rec.ultimo_grado_orden);
+    const estricto = Boolean(rec.solo_superiores);
+    return _SECCIONES_MODAL.filter(s => {
+      const sN = Number(s.nivel_orden != null ? s.nivel_orden : 0);
+      const sG = Number(s.grado_orden != null ? s.grado_orden : 0);
+      if (estricto) {
+        return sN > uN || (sN === uN && sG > uG);
+      }
+      return sN > uN || (sN === uN && sG >= uG);
+    });
+  }
+
+  function inicializarGradosModal(rec) {
+    _recActualModal = rec || null;
+    _seccionesPermitidasModal = _obtenerSeccionesPermitidas(_recActualModal);
+    const selGrado = document.getElementById('new-est-grado');
+    const hintGrado = document.getElementById('wiz-grado-hint');
+    if (!selGrado) return;
+
+    const vistos = new Map();
+    _seccionesPermitidasModal.forEach(s => {
+      if (!vistos.has(String(s.id_grado_anio))) {
+        vistos.set(String(s.id_grado_anio), (s.nivel_nombre || '') + ' · ' + (s.grado_nombre || ''));
+      }
+    });
+
+    if (vistos.size === 0 && _recActualModal && _recActualModal.tiene_historial && _recActualModal.solo_superiores) {
+      selGrado.innerHTML = '<option value="">Sin grados superiores disponibles (apto para egreso)</option>';
+    } else {
+      let html = '<option value="">-- Seleccione Grado / Año --</option>';
+      vistos.forEach((label, gid) => {
+        html += `<option value="${gid}">${_escModal(label)}</option>`;
+      });
+      selGrado.innerHTML = html;
+    }
+
+    if (hintGrado) {
+      if (_recActualModal && _recActualModal.tiene_historial && _recActualModal.ultimo_grado_nombre) {
+        hintGrado.textContent = _recActualModal.solo_superiores
+          ? `Solo grados superiores a ${_recActualModal.ultimo_grado_nombre} (aprobado).`
+          : `Disponible desde ${_recActualModal.ultimo_grado_nombre} en adelante según historial.`;
+        hintGrado.classList.remove('hidden');
+      } else {
+        hintGrado.textContent = '';
+        hintGrado.classList.add('hidden');
+      }
+    }
+    filtrarSeccionesModal();
+  }
+
+  function filtrarSeccionesModal(idSecPreferida) {
+    const selGrado = document.getElementById('new-est-grado');
+    const selSec = document.getElementById('new-est-sec');
+    if (!selSec) return;
+    const gid = selGrado ? selGrado.value : '';
+    const filtradas = gid
+      ? _seccionesPermitidasModal.filter(s => String(s.id_grado_anio) === String(gid))
+      : _seccionesPermitidasModal;
+    let html = '<option value="">-- Seleccione Sección --</option>';
+    filtradas.forEach(s => {
+      const label = gid
+        ? `Sección "${s.nombre}" (${s.turno})`
+        : `${s.grado_nombre} "${s.nombre}" (${s.turno})`;
+      html += `<option value="${s.id}">${_escModal(label)}</option>`;
+    });
+    selSec.innerHTML = html;
+    if (idSecPreferida && filtradas.some(s => String(s.id) === String(idSecPreferida))) {
+      selSec.value = String(idSecPreferida);
+    } else if (gid && filtradas.length === 1) {
+      selSec.value = String(filtradas[0].id);
+    }
+    actualizarResumenWizard();
+  }
+
+  function onCambioGradoModal() {
+    filtrarSeccionesModal();
+    validarCampoWizard('new-est-grado');
+    const selSec = document.getElementById('new-est-sec');
+    if (selSec && (selSec.value || selSec.dataset.touched)) {
+      validarCampoWizard('new-est-sec');
+    }
+  }
+
+  function onCambioSeccionModal() {
+    const selSec = document.getElementById('new-est-sec');
+    const selGrado = document.getElementById('new-est-grado');
+    if (selSec && selSec.value && selGrado && !selGrado.value) {
+      const secObj = _seccionesPermitidasModal.find(s => String(s.id) === String(selSec.value));
+      if (secObj) {
+        selGrado.value = String(secObj.id_grado_anio);
+        filtrarSeccionesModal(selSec.value);
+        validarCampoWizard('new-est-grado');
+      }
+    }
+    validarCampoWizard('new-est-sec');
+    actualizarResumenWizard();
+  }
+
+  function seleccionarSeccionEnCascada(idSec) {
+    if (!idSec) return;
+    const secObj = _seccionesPermitidasModal.find(s => String(s.id) === String(idSec));
+    if (!secObj) return;
+    const selGrado = document.getElementById('new-est-grado');
+    if (selGrado) selGrado.value = String(secObj.id_grado_anio);
+    filtrarSeccionesModal(idSec);
+    validarCampoWizard('new-est-grado');
+    validarCampoWizard('new-est-sec');
+  }
+
+  function actualizarResumenWizard() {
+    const ci = (document.getElementById('new-est-ci').value || '').trim();
+    const ape = (document.getElementById('new-est-ape').value || '').trim();
+    const nom = (document.getElementById('new-est-nom').value || '').trim();
+    const rci = (document.getElementById('new-rep-ci').value || '').trim();
+    const rape = (document.getElementById('new-rep-ape').value || '').trim();
+    const rnom = (document.getElementById('new-rep-nom').value || '').trim();
+    const rtel = (document.getElementById('new-rep-tel').value || '').trim();
+    const selSec = document.getElementById('new-est-sec');
+    const selCond = document.getElementById('new-est-condicion');
+
+    const resEst = document.getElementById('wiz-res-est');
+    const resRep = document.getElementById('wiz-res-rep');
+    const resDest = document.getElementById('wiz-res-dest');
+    if (resEst) resEst.textContent = (ape || nom) ? `${ape} ${nom} (${ci || 'S/C'})` : '-';
+    if (resRep) resRep.textContent = (rape || rnom) ? `${rape} ${rnom}${rci ? ' (' + rci + ')' : ''}${rtel ? ' · ' + rtel : ''}` : '-';
+    if (resDest) {
+      const secObj = selSec && selSec.value
+        ? _SECCIONES_MODAL.find(s => String(s.id) === String(selSec.value))
+        : null;
+      const condTxt = selCond && selCond.selectedIndex >= 0 ? selCond.options[selCond.selectedIndex].text : '';
+      resDest.textContent = secObj
+        ? `${secObj.grado_nombre} "${secObj.nombre}" (${secObj.turno}) · ${condTxt}`
+        : 'Por seleccionar';
+    }
+  }
+
+  function _actualizarStepperVisual(paso) {
+    [1, 2, 3].forEach(n => {
+      const ind = document.getElementById('wiz-ind-' + n);
+      if (!ind) return;
+      if (n < paso) {
+        ind.setAttribute('data-state', 'done');
+        ind.removeAttribute('aria-current');
+      } else if (n === paso) {
+        ind.setAttribute('data-state', 'active');
+        ind.setAttribute('aria-current', 'step');
+      } else {
+        ind.setAttribute('data-state', 'pending');
+        ind.removeAttribute('aria-current');
+      }
+    });
+    const c1 = document.getElementById('wiz-conn-1');
+    const c2 = document.getElementById('wiz-conn-2');
+    if (c1) c1.setAttribute('data-filled', paso > 1 ? 'true' : 'false');
+    if (c2) c2.setAttribute('data-filled', paso > 2 ? 'true' : 'false');
+
+    const badge = document.getElementById('wiz-paso-badge');
+    if (badge) badge.textContent = `Paso ${paso} de 3`;
+  }
+
+  function irPasoInscripcion(destino, validarActual) {
+    const paso = Math.max(1, Math.min(3, destino));
+    const anterior = _wizPasoActual;
+
+    if (validarActual && paso > anterior) {
+      // Asegura flujo estrictamente secuencial: valida todos los pasos previos al destino
+      for (let p = anterior; p < paso; p++) {
+        if (!validarPasoInscripcion(p, true)) {
+          if (p !== _wizPasoActual) irPasoInscripcion(p, false);
+          return;
+        }
+      }
+    } else {
+      const banner = document.getElementById('wiz-error');
+      if (banner) banner.classList.add('hidden');
+    }
+
+    _wizPasoActual = paso;
+    _actualizarStepperVisual(paso);
+
+    const claseEntrada = paso >= anterior ? 'wiz-entering-next' : 'wiz-entering-prev';
+    [1, 2, 3].forEach(n => {
+      const panel = document.getElementById('wiz-step-' + n);
+      if (!panel) return;
+      if (n === paso) {
+        panel.classList.remove('hidden');
+        if (paso !== anterior) {
+          panel.classList.add(claseEntrada);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              panel.classList.remove('wiz-entering-next', 'wiz-entering-prev');
+            });
+          });
+        }
+      } else {
+        panel.classList.add('hidden');
+        panel.classList.remove('wiz-entering-next', 'wiz-entering-prev');
+      }
+    });
+
+    const scrollBody = document.getElementById('wiz-scroll-body');
+    if (scrollBody && paso !== anterior) scrollBody.scrollTop = 0;
+
+    document.getElementById('wiz-btn-cancelar').classList.toggle('hidden', paso !== 1);
+    document.getElementById('wiz-btn-anterior').classList.toggle('hidden', paso === 1);
+    const btnSig = document.getElementById('wiz-btn-siguiente');
+    const btnGua = document.getElementById('wiz-btn-guardar');
+    btnSig.classList.toggle('hidden', paso === 3);
+    btnGua.classList.toggle('hidden', paso !== 3);
+    if (paso === 1) btnSig.textContent = 'Siguiente: Representante →';
+    if (paso === 2) btnSig.textContent = 'Siguiente: Año y Sección →';
+    if (paso === 3) actualizarResumenWizard();
+  }
+
+  function aplicarRecomendacionModal(rec, seccionActualNombre) {
+    const box = document.getElementById('est-rec-box');
+    const tit = document.getElementById('est-rec-titulo');
+    const det = document.getElementById('est-rec-detalle');
+    if (!box || !tit || !det) return;
+    if (!rec || !rec.tiene_historial) {
+      box.classList.add('hidden');
+      inicializarGradosModal(null);
+      return;
+    }
+    // Restringe los grados disponibles segun historial (solo superiores si aprobo)
+    inicializarGradosModal(rec);
+
+    let estilo = 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200';
+    if (rec.tipo_badge === 'danger') {
+      estilo = 'bg-red-50 dark:bg-red-950/60 border-red-200 dark:border-red-900 text-red-800 dark:text-red-200';
+    } else if (rec.tipo_badge === 'warn' || rec.tipo_badge === 'neutral') {
+      estilo = 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-black dark:text-white';
+    }
+    box.className = 'px-4 py-3 rounded-lg border text-xs space-y-0.5 ' + estilo;
+    tit.textContent = 'Recomendación al reinscribir: ' + (rec.etiqueta || '');
+    let detTxt = rec.detalle || '';
+    if (seccionActualNombre) {
+      detTxt += (detTxt ? ' · ' : '') + 'Nota: ya inscrito actualmente en ' + seccionActualNombre + ' (guardar actualizará su sección).';
+    }
+    det.textContent = detTxt;
+
+    const condSel = document.getElementById('new-est-condicion');
+    if (condSel && rec.condicion_sugerida) {
+      condSel.value = rec.condicion_sugerida;
+    }
+    if (rec.id_seccion_sugerida) {
+      seleccionarSeccionEnCascada(rec.id_seccion_sugerida);
+    } else if (rec.grado_sugerido_id) {
+      const selGrado = document.getElementById('new-est-grado');
+      if (selGrado && Array.from(selGrado.options).some(o => o.value === String(rec.grado_sugerido_id))) {
+        selGrado.value = String(rec.grado_sugerido_id);
+        filtrarSeccionesModal();
+        validarCampoWizard('new-est-grado');
+      }
+    }
+    actualizarResumenWizard();
+  }
+
+  function limpiarSeleccionReinscripcion() {
+    const form = document.getElementById('form-nuevo-estudiante');
+    if (form) form.reset();
+    limpiarErroresWizard();
+    inicializarGradosModal();
+    document.getElementById('buscador-reinscripcion').value = '';
+    document.getElementById('resultados-reinscripcion').classList.add('hidden');
+    document.getElementById('chip-reinscripcion').classList.add('hidden');
+    document.getElementById('btn-limpiar-reinscripcion').classList.add('hidden');
+    document.getElementById('est-lookup-status').classList.add('hidden');
+    document.getElementById('rep-lookup-status').classList.add('hidden');
+    document.getElementById('est-rec-box').classList.add('hidden');
+    document.getElementById('new-est-titulo').textContent = 'Inscribir / Reinscribir Estudiante';
+    irPasoInscripcion(1, false);
+  }
+
+  function abrirModalNuevoEstudiante() {
+    limpiarSeleccionReinscripcion();
+    abrirModal('modal-nuevo-estudiante');
+  }
+
+  function _revalidarCamposCargados(ids) {
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && String(el.value || '').trim() !== '') {
+        el.dataset.touched = '1';
+        validarCampoWizard(id, { normalizar: true });
+      }
+    });
+  }
+
+  function llenarFormularioConEstudiante(est, seccionActualNombre) {
+    limpiarErroresWizard();
+    document.getElementById('new-est-titulo').textContent = 'Reinscribir Estudiante';
+    document.getElementById('new-est-ci').value = est.cedula || '';
+    document.getElementById('new-est-ape').value = est.apellidos || '';
+    document.getElementById('new-est-nom').value = est.nombres || '';
+    document.getElementById('new-est-gen').value = est.genero || 'M';
+    document.getElementById('new-est-fnac').value = _normalizarFechaISO(est.fecha_nacimiento);
+    document.getElementById('new-est-dir').value = est.direccion || '';
+    document.getElementById('new-rep-ci').value = est.rep_cedula || '';
+    document.getElementById('new-rep-par').value = est.rep_parentesco || 'Representante Legal';
+    document.getElementById('new-rep-ape').value = est.rep_apellidos || '';
+    document.getElementById('new-rep-nom').value = est.rep_nombres || '';
+    document.getElementById('new-rep-tel').value = est.rep_telefono || '';
+    document.getElementById('new-rep-telt').value = est.rep_telefono_trabajo || '';
+    document.getElementById('new-rep-cor').value = est.rep_correo || '';
+    document.getElementById('new-rep-dir').value = est.rep_direccion || '';
+
+    _revalidarCamposCargados([..._CAMPOS_PASO[1], ..._CAMPOS_PASO[2]]);
+
+    const chip = document.getElementById('chip-reinscripcion');
+    const btnLimpiar = document.getElementById('btn-limpiar-reinscripcion');
+    const ultPer = est.ultimo_periodo || est.ultimo_periodo_nombre || '';
+    const ultGrd = est.ultimo_grado || est.ultimo_grado_nombre || '';
+    const ultSec = est.ultima_seccion || est.ultima_seccion_nombre || '';
+    if (chip) {
+      chip.innerHTML = `<b>Cargado para reinscripción:</b> ${_escModal(est.apellidos)} ${_escModal(est.nombres)} (${_escModal(est.cedula)})` +
+        (ultPer ? ` · Último: ${_escModal(ultGrd)} "${_escModal(ultSec)}" (${_escModal(ultPer)})` : '') +
+        '. Revisa los datos y avanza al siguiente paso.';
+      chip.classList.remove('hidden');
+    }
+    if (btnLimpiar) btnLimpiar.classList.remove('hidden');
+    if (est.cedula) {
+      buscarEstudiantePorCedula(est.cedula, seccionActualNombre || est.seccion_actual_nombre);
+    }
+  }
+
+  function abrirModalReinscribir(est) {
+    limpiarSeleccionReinscripcion();
+    llenarFormularioConEstudiante(est);
+    abrirModal('modal-nuevo-estudiante');
+  }
+
+  function programarBusquedaReinscripcion(texto) {
+    clearTimeout(_timerBusqReinsc);
+    const box = document.getElementById('resultados-reinscripcion');
+    const q = (texto || '').trim();
+    if (q.length < 2) {
+      if (box) box.classList.add('hidden');
+      return;
+    }
+    _timerBusqReinsc = setTimeout(async () => {
+      try {
+        const res = await fetch('/estudiantes/api/buscar-reinscripcion?q=' + encodeURIComponent(q));
+        if (!res.ok) return;
+        const data = await res.json();
+        _cacheResReinsc = data.resultados || [];
+        if (_cacheResReinsc.length === 0) {
+          box.innerHTML = '<div class="px-3 py-3 text-center opacity-75">Sin coincidencias. Puede registrarlo como nuevo ingreso abajo.</div>';
+          box.classList.remove('hidden');
+          return;
+        }
+        box.innerHTML = _cacheResReinsc.map((r, idx) => {
+          const hist = r.ultimo_periodo
+            ? `Último: ${_escModal(r.ultimo_grado)} "${_escModal(r.ultima_seccion)}" (${_escModal(r.ultimo_periodo)})`
+            : 'Sin matrícula previa';
+          const rep = r.rep_cedula
+            ? ` · Rep: ${_escModal(r.rep_apellidos || '')} ${_escModal(r.rep_nombres || '')} (${_escModal(r.rep_cedula)})`
+            : '';
+          const badge = r.seccion_actual_nombre
+            ? `<span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white border border-slate-300 dark:border-slate-700 font-semibold shrink-0">Ya en ${_escModal(r.seccion_actual_nombre)}</span>`
+            : (r.egresado
+              ? '<span class="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-semibold shrink-0">Egresado</span>'
+              : '<span class="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold shrink-0">Seleccionar</span>');
+          return `
+            <button type="button" onclick="seleccionarResultadoReinscripcion(${idx})" class="w-full px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="font-bold text-black dark:text-white truncate">${_escModal(r.apellidos)} ${_escModal(r.nombres)} <span class="font-normal opacity-75">(${_escModal(r.cedula)})</span></div>
+                <div class="opacity-75 truncate">${hist}${rep}</div>
+              </div>
+              ${badge}
+            </button>
+          `;
+        }).join('');
+        box.classList.remove('hidden');
+      } catch (_) {}
+    }, 220);
+  }
+
+  function seleccionarResultadoReinscripcion(idx) {
+    const est = _cacheResReinsc[idx];
+    const box = document.getElementById('resultados-reinscripcion');
+    if (box) box.classList.add('hidden');
+    if (!est) return;
+    document.getElementById('buscador-reinscripcion').value = `${est.apellidos} ${est.nombres} (${est.cedula})`;
+    llenarFormularioConEstudiante(est, est.seccion_actual_nombre);
+  }
+
+  document.addEventListener('click', function(e) {
+    const box = document.getElementById('resultados-reinscripcion');
+    const inp = document.getElementById('buscador-reinscripcion');
+    if (box && inp && !box.contains(e.target) && e.target !== inp) {
+      box.classList.add('hidden');
+    }
+  });
+
+  async function buscarEstudiantePorCedula(cedula, seccionActualNombre) {
+    const status = document.getElementById('est-lookup-status');
+    const recBox = document.getElementById('est-rec-box');
+    const c = _normalizarCedulaValor(cedula);
+    if (!c) {
+      if (status) status.classList.add('hidden');
+      if (recBox) recBox.classList.add('hidden');
+      return;
+    }
+    try {
+      const res = await fetch('/estudiantes/api/estudiante?cedula=' + encodeURIComponent(c));
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.encontrado && data.estudiante) {
+        const e = data.estudiante;
+        document.getElementById('new-est-ape').value = e.apellidos || '';
+        document.getElementById('new-est-nom').value = e.nombres || '';
+        document.getElementById('new-est-gen').value = e.genero || 'M';
+        document.getElementById('new-est-fnac').value = _normalizarFechaISO(e.fecha_nacimiento);
+        document.getElementById('new-est-dir').value = e.direccion || '';
+        if (data.representante) {
+          const r = data.representante;
+          document.getElementById('new-rep-ci').value = r.cedula || '';
+          document.getElementById('new-rep-ape').value = r.apellidos || '';
+          document.getElementById('new-rep-nom').value = r.nombres || '';
+          document.getElementById('new-rep-par').value = r.parentesco || 'Representante Legal';
+          document.getElementById('new-rep-tel').value = r.telefono || '';
+          document.getElementById('new-rep-telt').value = r.telefono_trabajo || '';
+          document.getElementById('new-rep-cor').value = r.correo || '';
+          document.getElementById('new-rep-dir').value = r.direccion || '';
+        }
+        _revalidarCamposCargados([..._CAMPOS_PASO[1], ..._CAMPOS_PASO[2]]);
+        if (status) {
+          const u = data.ultima_inscripcion;
+          status.textContent = u
+            ? 'Registrado · Último: ' + u.grado_nombre + ' "' + u.seccion_nombre + '" (' + u.periodo_nombre + ')'
+            : 'Estudiante registrado · datos cargados';
+          status.classList.remove('hidden');
+        }
+        aplicarRecomendacionModal(data.recomendacion, seccionActualNombre);
+      } else {
+        if (status) status.classList.add('hidden');
+        if (recBox) recBox.classList.add('hidden');
+        inicializarGradosModal(null);
+      }
+    } catch (_) {}
+  }
+
+  async function buscarRepresentantePorCedula(cedula) {
+    const status = document.getElementById('rep-lookup-status');
+    const c = _normalizarCedulaValor(cedula);
+    if (!c) {
+      if (status) status.classList.add('hidden');
+      return;
+    }
+    try {
+      const res = await fetch('/estudiantes/api/representante?cedula=' + encodeURIComponent(c));
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.encontrado && data.representante) {
+        const r = data.representante;
+        document.getElementById('new-rep-ape').value = r.apellidos || '';
+        document.getElementById('new-rep-nom').value = r.nombres || '';
+        document.getElementById('new-rep-par').value = r.parentesco || 'Representante Legal';
+        document.getElementById('new-rep-tel').value = r.telefono || '';
+        document.getElementById('new-rep-telt').value = r.telefono_trabajo || '';
+        document.getElementById('new-rep-cor').value = r.correo || '';
+        document.getElementById('new-rep-dir').value = r.direccion || '';
+        _revalidarCamposCargados(_CAMPOS_PASO[2]);
+        if (status) status.classList.remove('hidden');
+      } else if (status) {
+        status.classList.add('hidden');
+      }
+    } catch (_) {}
+  }
+
+  // Enlace de validacion en vivo (onblur valida y normaliza; oninput limpia/revalida una vez tocado)
+  (function configurarValidacionWizard() {
+    const fnacEl = document.getElementById('new-est-fnac');
+    if (fnacEl) {
+      fnacEl.max = new Date().toISOString().slice(0, 10);
+    }
+
+    const todosCampos = [..._CAMPOS_PASO[1], ..._CAMPOS_PASO[2]];
+    todosCampos.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      el.addEventListener('blur', function() {
+        el.dataset.touched = '1';
+        const ok = validarCampoWizard(id, { normalizar: true });
+        if (id === 'new-est-ci' && ok) {
+          buscarEstudiantePorCedula(el.value);
+        } else if (id === 'new-rep-ci' && ok) {
+          buscarRepresentantePorCedula(el.value);
+        }
+      });
+
+      el.addEventListener('input', function() {
+        if (el.dataset.touched || el.classList.contains('is-invalid')) {
+          validarCampoWizard(id, { normalizar: false });
+        }
+      });
+    });
+
+    // Presionar Enter en Paso 1 o 2 avanza al siguiente paso en lugar de enviar un formulario incompleto
+    const form = document.getElementById('form-nuevo-estudiante');
+    if (form) {
+      form.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter') return;
+        const target = e.target;
+        if (!target || target.tagName === 'BUTTON' || target.tagName === 'TEXTAREA') return;
+        if (target.id === 'buscador-reinscripcion') {
+          e.preventDefault();
+          return;
+        }
+        if (_wizPasoActual < 3) {
+          e.preventDefault();
+          irPasoInscripcion(_wizPasoActual + 1, true);
+        }
+      });
+
+      form.addEventListener('submit', function(e) {
+        if (!validarPasoInscripcion(1, false)) {
+          e.preventDefault();
+          irPasoInscripcion(1, false);
+          validarPasoInscripcion(1, true);
+          return;
+        }
+        if (!validarPasoInscripcion(2, false)) {
+          e.preventDefault();
+          irPasoInscripcion(2, false);
+          validarPasoInscripcion(2, true);
+          return;
+        }
+        if (!validarPasoInscripcion(3, true)) {
+          e.preventDefault();
+          irPasoInscripcion(3, false);
+          validarPasoInscripcion(3, true);
+        }
+      });
+    }
+  })();
+
+  inicializarGradosModal();
+</script>

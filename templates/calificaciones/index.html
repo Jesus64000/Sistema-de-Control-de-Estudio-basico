@@ -1,0 +1,1119 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Sección{% endblock %}
+{% block header_title %}Gestión de Sección{% endblock %}
+{% block content %}
+<div id="seccion-workspace" class="space-y-5" style="transition:opacity 120ms ease;">
+  <!-- Barra superior: selector de seccion, materia (si aplica) y datos clave de la seccion -->
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <form id="form-selector-notas" method="GET" class="flex flex-wrap items-end gap-3">
+        {% if request.args.get('embed') %}<input type="hidden" name="embed" value="1">{% endif %}
+        <input type="hidden" name="vista" value="{{ vista }}">
+        <div>
+          <label class="block text-xs font-semibold mb-1">Grado / Año</label>
+          <select name="id_grado" onchange="cambiarGradoNotas(this)" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for g in grados_disponibles %}
+            <option value="{{ g.id }}" {{ 'selected' if g.id == id_grado }}>{{ g.nivel_nombre }} · {{ g.nombre }}</option>
+            {% else %}
+            <option value="">-- Sin grados --</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold mb-1">Sección</label>
+          <select id="sel-seccion-notas" name="id_seccion" onchange="cambiarSelectorNotas(this)" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            {% for s in secciones %}
+            <option value="{{ s.id }}" {{ 'selected' if s.id == id_seccion }}>Sección "{{ s.nombre }}"</option>
+            {% else %}
+            <option value="">-- Sin secciones --</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if seccion_actual and seccion_actual.tipo_escala == 'numerica' and vista in ('estudiantes', 'notas') %}
+        <div>
+          <label class="block text-xs font-semibold mb-1">Materia</label>
+          <select id="sel-materia-notas" name="id_materia" onchange="cambiarSelectorNotas(this)" class="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <option value="">-- Todas las materias --</option>
+            {% for m in materias %}
+            <option value="{{ m.id }}" {{ 'selected' if m.id == id_materia }}>{{ m.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </form>
+
+      {% if seccion_actual %}
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <span class="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+          Turno: <b>{{ seccion_actual.turno }}</b>
+        </span>
+        <span class="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-medium">
+          {{ 'Docente Titular' if seccion_actual.tipo_escala == 'literal' else 'Profesor Guía' }}: <b>{{ seccion_actual.docente_guia_nombre or 'Sin asignar' }}</b>
+        </span>
+        {% if vista == 'notas' %}
+        <span id="badge-cambios" class="hidden px-2.5 py-1 rounded-full font-semibold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900">
+          Cambios sin guardar
+        </span>
+        {% if seccion_actual.tipo_escala == 'literal' or id_materia %}
+        <a href="{{ url_for('reportes.excel_notas', id_periodo=id_periodo, id_seccion=seccion_actual.id, id_materia=id_materia or '') }}" class="btn px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Exportar Excel
+        </a>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if seccion_actual and not request.args.get('embed') %}
+    <!-- Pestanas de gestion de la seccion (Estudiantes por defecto) -->
+    <div class="pt-4 border-t border-slate-200 dark:border-slate-800 flex flex-wrap gap-2 text-xs">
+      <a href="{{ url_for('calificaciones.index', id_periodo=id_periodo, id_grado=id_grado, id_seccion=seccion_actual.id, vista='estudiantes') }}" onclick="return navegarTabSeccion(event, this.href)" class="px-3 py-1.5 rounded-lg font-semibold {{ 'bg-blue-700 text-white' if vista == 'estudiantes' else 'border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800' }}">
+        Estudiantes y Notas
+      </a>
+      <a href="{{ url_for('calificaciones.index', id_periodo=id_periodo, id_grado=id_grado, id_seccion=seccion_actual.id, id_materia=id_materia, vista='notas') }}" onclick="return navegarTabSeccion(event, this.href)" class="px-3 py-1.5 rounded-lg font-semibold {{ 'bg-blue-700 text-white' if vista == 'notas' else 'border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800' }}">
+        {{ 'Ver Planilla de Notas' if solo_lectura else 'Cargar Notas' }}
+      </a>
+      {% if usuario_actual.rol in ('admin', 'operador') %}
+      <a href="{{ url_for('calificaciones.index', id_periodo=id_periodo, id_grado=id_grado, id_seccion=seccion_actual.id, vista='docentes') }}" onclick="return navegarTabSeccion(event, this.href)" class="px-3 py-1.5 rounded-lg font-semibold {{ 'bg-blue-700 text-white' if vista == 'docentes' else 'border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800' }}">
+        Docentes y Materias
+      </a>
+      {% endif %}
+      <a href="{{ url_for('calificaciones.index', id_periodo=id_periodo, id_grado=id_grado, id_seccion=seccion_actual.id, vista='horario') }}" onclick="return navegarTabSeccion(event, this.href)" class="px-3 py-1.5 rounded-lg font-semibold {{ 'bg-blue-700 text-white' if vista == 'horario' else 'border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800' }}">
+        Horario
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if seccion_actual %}
+    {% if vista == 'notas' %}
+    <!-- VISTA 1: CARGAR NOTAS -->
+      {% if seccion_actual.tipo_escala == 'literal' %}
+      <form class="form-guardar-notas bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden" method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="vista" value="notas">
+        {% if request.args.get('embed') %}<input type="hidden" name="embed" value="1">{% endif %}
+        <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
+
+        <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-bold">{{ seccion_actual.grado_nombre }} "{{ seccion_actual.nombre }}"</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">Escala Literal (A - E)</span>
+            <span id="resumen-notas" class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-black dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700">{{ filas|length }} estudiantes</span>
+          </div>
+          {% if filas and not solo_lectura %}
+          <button type="submit" class="btn px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Calificaciones</button>
+          {% endif %}
+        </div>
+
+        <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
+          <input id="filtro-notas" type="text" oninput="filtrarPlanillaNotas()" placeholder="Filtrar estudiante por cédula o nombre..." class="w-64 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-600">
+          {% if not lapsos_activos.l2 or not lapsos_activos.l3 %}
+          <button type="button" id="btn-mostrar-lapsos" onclick="mostrarTodosLapsos()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Mostrar todos los lapsos</button>
+          {% endif %}
+          <span class="text-xs text-black dark:text-white opacity-70 hidden sm:flex">Tip: pulsa Enter para bajar al siguiente alumno</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+              <tr>
+                <th class="px-4 py-3">Estudiante</th>
+                <th class="px-3 py-3 text-center">Lapso 1</th>
+                <th class="col-l2 {{ 'hidden ' if not lapsos_activos.l2 }}px-3 py-3 text-center">Lapso 2</th>
+                <th class="col-l3 {{ 'hidden ' if not lapsos_activos.l3 }}px-3 py-3 text-center">Lapso 3</th>
+                <th class="col-def {{ 'hidden ' if not lapsos_activos.def }}px-3 py-3 text-center">Definitiva</th>
+                <th class="px-4 py-3">Observaciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+              {% for f in filas %}
+              <tr class="fila-nota hover:bg-slate-50 dark:hover:bg-slate-800/40" data-search="{{ (f.cedula ~ ' ' ~ f.apellidos ~ ' ' ~ f.nombres)|lower }}">
+                <td class="px-4 py-2.5">
+                  <input type="hidden" name="id_inscripcion" value="{{ f.id_inscripcion }}">
+                  <div class="font-semibold text-black dark:text-white">{{ f.apellidos }} {{ f.nombres }}</div>
+                  <div class="tabular-nums opacity-70">{{ f.cedula }}</div>
+                </td>
+                {% for campo, val, vis in [('l1', f.lapso_1, True), ('l2', f.lapso_2, lapsos_activos.l2), ('l3', f.lapso_3, lapsos_activos.l3), ('def', f.definitiva, lapsos_activos.def)] %}
+                {% set bloqueado = solo_lectura or (campo == 'def') or (campo == 'l1' and lapsos_activos.l2 and val) or (campo == 'l2' and lapsos_activos.l3 and val) %}
+                <td class="{{ 'col-' ~ campo ~ ' ' if campo != 'l1' }}{{ 'hidden ' if not vis }}px-3 py-2 text-center">
+                  <select id="{{ campo }}_{{ f.id_inscripcion }}" name="{{ campo }}_{{ f.id_inscripcion }}" data-col="{{ campo }}" {% if bloqueado %}tabindex="-1" style="pointer-events:none;opacity:0.75;"{% endif %} onchange="marcarCambios(); {{ 'actualizarResumen()' if campo == 'def' else 'recalcularFilaPrimaria(' ~ f.id_inscripcion ~ ')' }}" class="nota-nav px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold {{ 'input-def-lit' if campo == 'def' }}">
+                    <option value="">-</option>
+                    {% for lit in escala_literal %}<option value="{{ lit }}" {{ 'selected' if val == lit }}>{{ lit }}</option>{% endfor %}
+                  </select>
+                </td>
+                {% endfor %}
+                <td class="px-4 py-2"><input type="text" name="obs_{{ f.id_inscripcion }}" value="{{ f.observaciones or '' }}" {% if solo_lectura %}readonly style="opacity:0.75;"{% endif %} oninput="marcarCambios()" class="w-full px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs"></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="px-4 py-6 text-center text-black dark:text-white">No hay estudiantes inscritos en esta sección.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if filas and not solo_lectura %}
+        <div class="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+          <button type="submit" class="btn px-5 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Calificaciones</button>
+        </div>
+        {% endif %}
+      </form>
+      {% else %}
+      <!-- Media General: 1 formulario por materia (todas las materias o la seleccionada) -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="filtro-notas" type="text" oninput="filtrarPlanillaNotas()" placeholder="Filtrar estudiante por cédula o nombre..." class="w-64 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-600">
+          {% if not lapsos_activos.l2 or not lapsos_activos.l3 %}
+          <button type="button" id="btn-mostrar-lapsos" onclick="mostrarTodosLapsos()" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Mostrar todos los lapsos</button>
+          {% endif %}
+          <span class="text-xs text-black dark:text-white opacity-70 hidden sm:flex">Tip: pulsa Enter para bajar al siguiente alumno</span>
+        </div>
+      </div>
+
+      {% for mat, mat_filas in filas_por_materia %}
+      <form class="form-guardar-notas bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden" method="POST">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="vista" value="notas">
+        {% if request.args.get('embed') %}<input type="hidden" name="embed" value="1">{% endif %}
+        <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
+        <input type="hidden" name="id_materia" value="{{ mat.id }}">
+
+        <div class="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-bold">{{ mat.nombre }}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800">{{ seccion_actual.grado_nombre }} "{{ seccion_actual.nombre }}"</span>
+            <span class="tabular-nums px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-black dark:bg-slate-800 dark:text-white border border-slate-200 dark:border-slate-700">{{ mat_filas|length }} estudiantes</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <a href="{{ url_for('reportes.excel_notas', id_periodo=id_periodo, id_seccion=seccion_actual.id, id_materia=mat.id) }}" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Excel</a>
+            {% if mat_filas and not solo_lectura %}
+            <button type="submit" class="btn px-4 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar {{ mat.codigo or 'Notas' }}</button>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+              <tr>
+                <th class="px-4 py-3">Estudiante</th>
+                <th class="px-2 py-3 text-center" title="Nota del 1.er Lapso (01 a 20)">L1</th>
+                <th class="col-l2 {{ 'hidden ' if not lapsos_activos.l2 }}px-2 py-3 text-center" title="Nota del 2.do Lapso (01 a 20)">L2</th>
+                <th class="col-l3 {{ 'hidden ' if not lapsos_activos.l3 }}px-2 py-3 text-center" title="Nota del 3.er Lapso (01 a 20)">L3</th>
+                <th class="col-def {{ 'hidden ' if not lapsos_activos.def }}px-2 py-3 text-center" title="Nota Definitiva (01 a 20)">Def.</th>
+                <th class="col-def {{ 'hidden ' if not lapsos_activos.def }}px-2 py-3 text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+              {% for f in mat_filas %}
+              <tr class="fila-nota hover:bg-slate-50 dark:hover:bg-slate-800/40" data-search="{{ (f.cedula ~ ' ' ~ f.apellidos ~ ' ' ~ f.nombres)|lower }}">
+                <td class="px-4 py-2.5">
+                  <input type="hidden" name="id_inscripcion" value="{{ f.id_inscripcion }}">
+                  <div class="font-semibold text-black dark:text-white">{{ f.apellidos }} {{ f.nombres }}</div>
+                  <div class="tabular-nums opacity-70">{{ f.cedula }}</div>
+                </td>
+                {% set bloq_l1 = solo_lectura or (lapsos_activos.l2 and f.lapso_1 is not none) %}
+                {% set bloq_l2 = solo_lectura or (lapsos_activos.l3 and f.lapso_2 is not none) %}
+                <td class="px-2 py-2 text-center"><input type="text" inputmode="decimal" maxlength="4" placeholder="01-20" data-col="l1" {% if bloq_l1 %}readonly style="opacity:0.7;cursor:not-allowed;"{% endif %} oninput="validarNotaInput(this); marcarCambios(); recalcularFila({{ mat.id }}, {{ f.id_inscripcion }})" onblur="formatearNotaBlur(this)" name="l1_{{ f.id_inscripcion }}" id="l1_{{ mat.id }}_{{ f.id_inscripcion }}" value="{{ '%g'|format(f.lapso_1|float) if f.lapso_1 is not none else '' }}" class="nota-nav nota-num w-14 px-1.5 py-1 text-center rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs tabular-nums"></td>
+                <td class="col-l2 {{ 'hidden ' if not lapsos_activos.l2 }}px-2 py-2 text-center"><input type="text" inputmode="decimal" maxlength="4" placeholder="01-20" data-col="l2" {% if bloq_l2 %}readonly style="opacity:0.7;cursor:not-allowed;"{% endif %} oninput="validarNotaInput(this); marcarCambios(); recalcularFila({{ mat.id }}, {{ f.id_inscripcion }})" onblur="formatearNotaBlur(this)" name="l2_{{ f.id_inscripcion }}" id="l2_{{ mat.id }}_{{ f.id_inscripcion }}" value="{{ '%g'|format(f.lapso_2|float) if f.lapso_2 is not none else '' }}" class="nota-nav nota-num w-14 px-1.5 py-1 text-center rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs tabular-nums"></td>
+                <td class="col-l3 {{ 'hidden ' if not lapsos_activos.l3 }}px-2 py-2 text-center"><input type="text" inputmode="decimal" maxlength="4" placeholder="01-20" data-col="l3" {% if solo_lectura %}readonly style="opacity:0.7;cursor:not-allowed;"{% endif %} oninput="validarNotaInput(this); marcarCambios(); recalcularFila({{ mat.id }}, {{ f.id_inscripcion }})" onblur="formatearNotaBlur(this)" name="l3_{{ f.id_inscripcion }}" id="l3_{{ mat.id }}_{{ f.id_inscripcion }}" value="{{ '%g'|format(f.lapso_3|float) if f.lapso_3 is not none else '' }}" class="nota-nav nota-num w-14 px-1.5 py-1 text-center rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs tabular-nums"></td>
+                <td class="col-def {{ 'hidden ' if not lapsos_activos.def }}px-2 py-2 text-center"><input type="text" readonly tabindex="-1" style="opacity:0.85;cursor:default;" data-col="def" name="def_{{ f.id_inscripcion }}" id="def_{{ mat.id }}_{{ f.id_inscripcion }}" value="{{ '%g'|format(f.definitiva|float) if f.definitiva is not none else '' }}" placeholder="Auto" class="input-def-num w-16 px-1.5 py-1 text-center rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold tabular-nums"></td>
+                <td class="col-def {{ 'hidden ' if not lapsos_activos.def }}px-2 py-2 text-center">
+                  <span id="badge_{{ mat.id }}_{{ f.id_inscripcion }}" class="px-2 py-0.5 rounded-full text-xs font-medium {{ 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' if f.definitiva is not none and f.definitiva >= 10 else ('bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300' if f.definitiva is not none else 'bg-slate-100 text-black dark:text-white dark:bg-slate-800') }}">
+                    {{ 'Aprobado' if f.definitiva is not none and f.definitiva >= 10 else ('Aplazado' if f.definitiva is not none else '-') }}
+                  </span>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="px-4 py-6 text-center text-black dark:text-white">No hay estudiantes inscritos en esta sección.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </form>
+      {% else %}
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 text-center text-xs">
+        {% if usuario_actual.rol == 'docente' %}
+        <p class="font-semibold text-black dark:text-white">No tienes materias asignadas para cargar notas en esta sección.</p>
+        <p class="opacity-75 mt-1">Puedes consultar el rendimiento de los estudiantes en la pestaña "Estudiantes y Notas".</p>
+        {% else %}
+        <p class="font-semibold text-black dark:text-white">No hay materias activas registradas para {{ seccion_actual.grado_nombre }}.</p>
+        <a href="{{ url_for('academico.index') }}" class="inline-block mt-2 font-semibold text-blue-700 dark:text-blue-400 hover:underline">Ir a Estructura Académica</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+    {% elif vista == 'estudiantes' %}
+    <!-- VISTA POR DEFECTO: ESTUDIANTES, NOTAS Y PROMEDIOS DE LA SECCION -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-bold">{{ seccion_actual.grado_nombre }} "{{ seccion_actual.nombre }}" — Estudiantes y Calificaciones</h3>
+          <p class="text-xs opacity-75">Consulta las notas del lapso activo y el definitivo acumulado de la sección.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          {% if seccion_actual.tipo_escala == 'literal' or not id_materia %}
+          <div class="flex items-center gap-2">
+            <label for="sel-lapso-instant" class="text-xs font-semibold">Lapso:</label>
+            <select id="sel-lapso-instant" onchange="cambiarLapsoInstantaneo(this.value)" class="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold">
+              {% for k, lbl in lapsos_disponibles %}
+              <option value="{{ k }}" {{ 'selected' if lapso == k }}>{{ lbl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          {% set puede_sabana = (usuario_actual.rol in ('admin', 'operador')) or (usuario_actual.id_docente and usuario_actual.id_docente == seccion_actual.id_docente_titular_guia) %}
+          <a href="{{ url_for('reportes.asistencia_pdf', id_seccion=seccion_actual.id, id_periodo=id_periodo) }}" class="btn px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800" title="Descargar lista de asistencia en blanco (PDF)">
+            Asistencia PDF
+          </a>
+          <a href="{{ url_for('reportes.asistencia_excel', id_seccion=seccion_actual.id, id_periodo=id_periodo) }}" class="btn px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800" title="Descargar lista de asistencia en blanco (Excel)">
+            Asistencia Excel
+          </a>
+          {% if puede_sabana %}
+          <a id="btn-sabana-excel" href="{{ url_for('reportes.excel_sabana', id_seccion=seccion_actual.id, id_periodo=id_periodo, lapso=lapso) }}" class="btn px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+            Sábana Excel
+          </a>
+          {% if seccion_actual.tipo_escala == 'numerica' %}
+          <a id="btn-sabana-pdf" href="{{ url_for('reportes.pdf_sabana', id_seccion=seccion_actual.id, id_periodo=id_periodo, lapso=lapso) }}" class="btn px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+            Sábana PDF
+          </a>
+          {% endif %}
+          {% endif %}
+          <a href="{{ url_for('calificaciones.index', id_periodo=id_periodo, id_grado=id_grado, id_seccion=seccion_actual.id, id_materia=id_materia, vista='notas') }}" onclick="return navegarTabSeccion(event, this.href)" class="btn px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">
+            {{ 'Ver Planilla' if solo_lectura else 'Cargar Notas' }}
+          </a>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        {% if seccion_actual.tipo_escala == 'literal' %}
+        <table class="w-full text-xs text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-3">#</th>
+              <th class="px-4 py-3">Estudiante</th>
+              <th id="th-lapso-prim" class="px-3 py-3 text-center">
+                {% if lapso == '1' %}1.er Lapso{% elif lapso == '2' %}2.do Lapso{% elif lapso == '3' %}3.er Lapso{% else %}Definitiva{% endif %}
+              </th>
+              <th class="px-3 py-3 text-center">Def. Acumulada</th>
+              <th class="px-4 py-3">Observaciones</th>
+              <th class="px-3 py-3 text-right">Boletín</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for f in filas %}
+            {% set nota_lap = f.lapso_1 if lapso == '1' else (f.lapso_2 if lapso == '2' else (f.lapso_3 if lapso == '3' else f.definitiva)) %}
+            {% set def_acum = f.definitiva or f.lapso_3 or f.lapso_2 or f.lapso_1 %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="px-4 py-2.5 tabular-nums opacity-70">{{ loop.index }}</td>
+              <td class="px-4 py-2.5">
+                <div class="font-semibold text-black dark:text-white">{{ f.apellidos }} {{ f.nombres }}</div>
+                <div class="tabular-nums opacity-70">{{ f.cedula }}</div>
+              </td>
+              <td class="celda-lapso-prim px-3 py-2.5 text-center font-bold" data-l1="{{ f.lapso_1 or '-' }}" data-l2="{{ f.lapso_2 or '-' }}" data-l3="{{ f.lapso_3 or '-' }}" data-final="{{ f.definitiva or '-' }}">{{ nota_lap or '-' }}</td>
+              <td class="px-3 py-2.5 text-center">
+                <span class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-bold">{{ def_acum or '-' }}</span>
+              </td>
+              <td class="px-4 py-2.5 opacity-80">{{ f.observaciones or '-' }}</td>
+              <td class="px-3 py-2.5 text-right">
+                <a href="{{ url_for('reportes.boletin_pdf', id_inscripcion=f.id_inscripcion) }}" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">PDF</a>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-6 text-center opacity-75">No hay estudiantes inscritos en esta sección.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% elif id_materia %}
+        {% set mat_unica = (materias_grado | selectattr('id', 'equalto', id_materia) | list | first) %}
+        {% set ver_l2 = lapsos_disponibles | selectattr('0', 'equalto', '2') | list | length > 0 %}
+        {% set ver_l3 = lapsos_disponibles | selectattr('0', 'equalto', '3') | list | length > 0 %}
+        {% set ver_def = lapsos_disponibles | selectattr('0', 'equalto', 'final') | list | length > 0 %}
+        <table class="w-full text-xs text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-3">Estudiante</th>
+              <th class="px-3 py-3 text-center">1.er Lapso</th>
+              {% if ver_l2 %}<th class="px-3 py-3 text-center">2.do Lapso</th>{% endif %}
+              {% if ver_l3 %}<th class="px-3 py-3 text-center">3.er Lapso</th>{% endif %}
+              {% if ver_def %}<th class="px-3 py-3 text-center">Definitiva</th>{% endif %}
+              <th class="px-3 py-3 text-center">Estado</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for est in sabana %}
+            {% set nm = est.notas.get(id_materia) if mat_unica else none %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="px-4 py-2.5">
+                <div class="font-semibold">{{ est.apellidos }} {{ est.nombres }}</div>
+                <div class="tabular-nums opacity-70">{{ est.cedula }}</div>
+              </td>
+              <td class="px-3 py-2.5 text-center tabular-nums font-bold">
+                {% if nm and nm.lapso_1 is not none %}
+                <span class="{{ 'text-emerald-700 dark:text-emerald-400' if nm.lapso_1 >= 10 else 'text-red-700 dark:text-red-400' }}">{{ '%g'|format(nm.lapso_1|float) }}</span>
+                {% else %}<span class="opacity-50">-</span>{% endif %}
+              </td>
+              {% if ver_l2 %}
+              <td class="px-3 py-2.5 text-center tabular-nums font-bold">
+                {% if nm and nm.lapso_2 is not none %}
+                <span class="{{ 'text-emerald-700 dark:text-emerald-400' if nm.lapso_2 >= 10 else 'text-red-700 dark:text-red-400' }}">{{ '%g'|format(nm.lapso_2|float) }}</span>
+                {% else %}<span class="opacity-50">-</span>{% endif %}
+              </td>
+              {% endif %}
+              {% if ver_l3 %}
+              <td class="px-3 py-2.5 text-center tabular-nums font-bold">
+                {% if nm and nm.lapso_3 is not none %}
+                <span class="{{ 'text-emerald-700 dark:text-emerald-400' if nm.lapso_3 >= 10 else 'text-red-700 dark:text-red-400' }}">{{ '%g'|format(nm.lapso_3|float) }}</span>
+                {% else %}<span class="opacity-50">-</span>{% endif %}
+              </td>
+              {% endif %}
+              {% if ver_def %}
+              <td class="px-3 py-2.5 text-center tabular-nums">
+                {% if nm and nm.definitiva is not none %}
+                <span class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-bold">{{ '%g'|format(nm.definitiva|float) }}</span>
+                {% else %}<span class="opacity-50">-</span>{% endif %}
+              </td>
+              {% endif %}
+              <td class="px-3 py-2.5 text-center">
+                {% if nm and nm.definitiva is not none %}
+                <span class="px-2 py-0.5 rounded-full font-medium {{ 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300' if nm.definitiva >= 10 else 'bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300' }}">
+                  {{ 'Aprobado' if nm.definitiva >= 10 else 'Aplazado' }}
+                </span>
+                {% else %}
+                <span class="opacity-50">-</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-6 text-center opacity-75">No hay estudiantes inscritos en esta sección.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <table class="w-full text-xs text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase text-black dark:text-white">
+            <tr>
+              <th class="px-4 py-3">Estudiante</th>
+              {% for m in materias_grado %}
+              <th class="px-2 py-3 text-center" title="{{ m.nombre }}">{{ m.codigo or m.nombre[:10] }}</th>
+              {% endfor %}
+              <th id="th-prom-lapso" class="px-2 py-3 text-center">
+                {% if lapso == '1' %}Prom. L1{% elif lapso == '2' %}Prom. L2{% elif lapso == '3' %}Prom. L3{% else %}Prom. Final{% endif %}
+              </th>
+              <th class="px-3 py-3 text-center">Def. Acumulado</th>
+              <th class="px-3 py-3 text-right">Boletín</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for est in sabana %}
+            {% set prom_lap = est.prom_l1 if lapso == '1' else (est.prom_l2 if lapso == '2' else (est.prom_l3 if lapso == '3' else est.prom_final)) %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="px-4 py-2.5">
+                <div class="font-semibold">{{ est.apellidos }} {{ est.nombres }}</div>
+                <div class="tabular-nums opacity-70">{{ est.cedula }}</div>
+              </td>
+              {% for m in materias_grado %}
+              {% set nm = est.notas.get(m.id) %}
+              {% set val = none %}
+              {% if nm %}
+                {% if lapso == '1' %}{% set val = nm.lapso_1 %}
+                {% elif lapso == '2' %}{% set val = nm.lapso_2 %}
+                {% elif lapso == '3' %}{% set val = nm.lapso_3 %}
+                {% else %}{% set val = nm.definitiva %}
+                {% endif %}
+              {% endif %}
+              <td
+                class="celda-nota-sec px-2 py-2.5 text-center tabular-nums"
+                data-l1="{{ nm.lapso_1 if nm and nm.lapso_1 is not none else '' }}"
+                data-l2="{{ nm.lapso_2 if nm and nm.lapso_2 is not none else '' }}"
+                data-l3="{{ nm.lapso_3 if nm and nm.lapso_3 is not none else '' }}"
+                data-final="{{ nm.definitiva if nm and nm.definitiva is not none else '' }}"
+              >
+                {% if val is not none %}
+                <span class="font-bold {{ 'text-emerald-700 dark:text-emerald-400' if val >= 10 else 'text-red-700 dark:text-red-400' }}">{{ '%g'|format(val|float) }}</span>
+                {% else %}
+                <span class="opacity-50">-</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+              <td
+                class="celda-prom-sec px-2 py-2.5 text-center tabular-nums font-semibold"
+                data-l1="{{ est.prom_l1 }}"
+                data-l2="{{ est.prom_l2 }}"
+                data-l3="{{ est.prom_l3 }}"
+                data-final="{{ est.prom_final }}"
+              >{{ prom_lap }}</td>
+              <td class="px-3 py-2.5 text-center tabular-nums">
+                <span class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-bold">{{ est.prom_acumulado }}</span>
+              </td>
+              <td class="px-3 py-2.5 text-right">
+                <a href="{{ url_for('reportes.boletin_pdf', id_inscripcion=est.id_inscripcion) }}" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">PDF</a>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="{{ materias_grado|length + 4 }}" class="px-4 py-6 text-center opacity-75">No hay estudiantes inscritos en esta sección.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+
+    {% elif vista == 'docentes' %}
+    <!-- VISTA 4: DOCENTES Y MATERIAS DE LA SECCION (EDITABLE) -->
+    {% set mapa_asig_id = {} %}
+    {% set mapa_asig_nom = {} %}
+    {% for a in asignaciones %}
+      {% set _ = mapa_asig_id.update({a.id_materia: a.id_docente}) %}
+      {% set _ = mapa_asig_nom.update({a.id_materia: a.docente_nombre}) %}
+    {% endfor %}
+    <form method="POST" action="{{ url_for('calificaciones.guardar_asignaciones') }}" class="form-asignaciones-seccion bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
+      <input type="hidden" name="id_grado" value="{{ id_grado }}">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-bold">Docentes Asignados por Materia</h3>
+          <p class="text-xs opacity-75">Las materias provienen de la estructura académica de {{ seccion_actual.grado_nombre }}. Selecciona el docente de cada asignatura.</p>
+        </div>
+        {% if usuario_actual.rol == 'admin' and not solo_lectura %}
+        <div class="flex flex-wrap items-center gap-2">
+          {% if seccion_actual.tipo_escala == 'literal' and seccion_actual.id_docente_titular_guia %}
+          <button type="submit" name="accion" value="titular_primaria" class="btn px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950 text-xs font-semibold">
+            Asignar Titular a materias regulares
+          </button>
+          {% endif %}
+          <button type="submit" class="btn px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">
+            Guardar Asignaciones
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-3 text-xs">
+        <label class="font-semibold">{{ 'Docente Titular' if seccion_actual.tipo_escala == 'literal' else 'Profesor Guía de la Sección' }}:</label>
+        {% if usuario_actual.rol == 'admin' and not solo_lectura %}
+        <select name="id_docente_guia" style="min-width:240px" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+          <option value="">-- Sin asignar --</option>
+          {% for d in docentes %}
+          <option value="{{ d.id }}" {{ 'selected' if d.id == seccion_actual.id_docente_titular_guia }}>{{ d.apellidos }} {{ d.nombres }} ({{ d.cedula }})</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <span class="font-semibold">{{ seccion_actual.docente_guia_nombre or 'Sin asignar' }}</span>
+        {% endif %}
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs text-left">
+          <thead class="bg-slate-50 dark:bg-slate-800/60 uppercase">
+            <tr>
+              <th class="px-4 py-3">Materia</th>
+              <th class="px-4 py-3">Bloque de Formación</th>
+              <th class="px-4 py-3">Profesor de la Materia</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+            {% for mat in materias_grado %}
+            {% set doc_sel = mapa_asig_id.get(mat.id) %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+              <td class="px-4 py-2.5 font-semibold">
+                {{ mat.nombre }}
+                {% if mat.es_especial %}<span style="margin-left:0.25rem" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-normal opacity-75">Especial</span>{% endif %}
+              </td>
+              <td class="px-4 py-2.5 opacity-75">{{ mat.bloque_nombre }}</td>
+              <td class="px-4 py-2.5">
+                {% if usuario_actual.rol == 'admin' and not solo_lectura %}
+                <select name="docente_{{ mat.id }}" style="max-width:20rem" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+                  <option value="">-- Sin asignar --</option>
+                  {% for d in docentes %}
+                  <option value="{{ d.id }}" {{ 'selected' if d.id == doc_sel }}>{{ d.apellidos }} {{ d.nombres }}</option>
+                  {% endfor %}
+                </select>
+                {% else %}
+                  {% if mapa_asig_nom.get(mat.id) %}
+                  <span class="font-medium">{{ mapa_asig_nom.get(mat.id) }}</span>
+                  {% else %}
+                  <span class="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900 font-semibold">Sin asignar</span>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="3" class="px-4 py-6 text-center opacity-75">
+                No hay materias configuradas para este grado.
+                {% if usuario_actual.rol == 'admin' %}
+                <a href="{{ url_for('academico.index') }}" style="margin-left:0.25rem" class="text-blue-700 dark:text-blue-400 underline">Configurar en Estructura Académica</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </form>
+
+    {% elif vista == 'horario' %}
+    <!-- VISTA 5: HORARIO DE LA SECCION (EDITABLE PARA ADMIN) -->
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 class="text-sm font-bold">Horario Semanal de la Sección</h3>
+          <p class="text-xs opacity-75">{{ seccion_actual.grado_nombre }} · Sección "{{ seccion_actual.nombre }}"</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <a href="{{ url_for('reportes.horario_seccion_pdf', id_seccion=seccion_actual.id, id_periodo=id_periodo) }}" class="btn px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Descargar Horario PDF</a>
+          {% if usuario_actual.rol == 'admin' %}
+          {% if not solo_lectura %}
+          <button type="button" onclick="abrirModalBloqueSeccion()" class="btn px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Agregar Bloque</button>
+          {% endif %}
+          <a href="{{ url_for('horarios.index', id_periodo=id_periodo, modo='seccion', id_grado=id_grado, id_seccion=seccion_actual.id) }}" class="btn px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Vista Horarios</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="p-4 grid grid-cols-1 md:grid-cols-5 gap-3 text-xs">
+        {% for dia_num, dia_nom in dias.items() %}
+        <div class="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+          <div class="font-bold text-blue-700 dark:text-blue-400 border-b border-slate-200 dark:border-slate-800 pb-2 flex items-center justify-between">
+            <span>{{ dia_nom }}</span>
+            {% if usuario_actual.rol == 'admin' and not solo_lectura %}
+            <button type="button" onclick="abrirModalBloqueSeccion(null, '{{ dia_num }}')" class="text-xs font-semibold opacity-75 hover:opacity-100" title="Agregar en {{ dia_nom }}">+</button>
+            {% endif %}
+          </div>
+          {% for b in bloques_por_dia.get(dia_num, []) %}
+          <div class="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+            <div class="flex items-center justify-between gap-1">
+              <span class="tabular-nums font-bold">{{ b.hi }} - {{ b.hf }}</span>
+              {% if usuario_actual.rol == 'admin' and not solo_lectura %}
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  onclick="abrirModalBloqueSeccion(this)"
+                  data-id="{{ b.id }}"
+                  data-dia="{{ b.dia_semana }}"
+                  data-hi="{{ b.hi }}"
+                  data-hf="{{ b.hf }}"
+                  data-materia="{{ b.id_materia or '' }}"
+                  data-desc="{{ b.descripcion_bloque or '' }}"
+                  data-docente="{{ b.id_docente }}"
+                  data-aula="{{ b.aula or '' }}"
+                  class="text-blue-700 dark:text-blue-400 hover:underline font-medium"
+                >Editar</button>
+                <form method="POST" action="{{ url_for('horarios.eliminar', hid=b.id) }}" style="display:inline" class="form-horario-seccion-del" data-confirm="¿Eliminar este bloque del horario?">
+                  <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
+                  <button type="submit" class="text-red-700 dark:text-red-400 hover:underline font-medium">Eliminar</button>
+                </form>
+              </div>
+              {% endif %}
+            </div>
+            <div class="font-semibold">{{ b.materia_nombre or b.descripcion_bloque or 'Bloque' }}</div>
+            <div class="opacity-75">{{ b.docente_nombre }}</div>
+            {% if b.aula %}<div class="opacity-70">Aula: {{ b.aula }}</div>{% endif %}
+          </div>
+          {% else %}
+          <p class="opacity-70 py-2">Sin bloques</p>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if usuario_actual.rol == 'admin' and not solo_lectura %}
+    <div id="modal-bloque-seccion" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true">
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-md w-full shadow-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h3 id="titulo-modal-bloque-sec" class="font-bold text-base">Agregar Bloque de Horario</h3>
+          <button type="button" onclick="cerrarModal('modal-bloque-seccion')" class="opacity-75 hover:opacity-100 text-sm font-bold">✕</button>
+        </div>
+        <form id="form-bloque-seccion" method="POST" action="{{ url_for('horarios.crear') }}" class="form-bloque-seccion" data-crear-url="{{ url_for('horarios.crear') }}" data-guia="{{ seccion_actual.id_docente_titular_guia or '' }}" data-asignaciones='{{ mapa_asignaciones | tojson }}'>
+          <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="id_seccion" value="{{ seccion_actual.id }}">
+          <div class="p-6 space-y-4">
+            <div>
+              <label class="block text-xs font-semibold mb-1">Día de la Semana *</label>
+              <select id="bs-dia" name="dia_semana" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                {% for dn, dnom in dias.items() %}<option value="{{ dn }}">{{ dnom }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold mb-1">Inicio *</label>
+                <input id="bs-hi" type="time" name="hora_inicio" required value="07:00" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold mb-1">Fin *</label>
+                <input id="bs-hf" type="time" name="hora_fin" required value="08:30" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Materia</label>
+              <select id="bs-materia" name="id_materia" onchange="autoSeleccionarDocenteSeccion(this)" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <option value="">-- Bloque general / Guía --</option>
+                {% for m in materias_grado %}<option value="{{ m.id }}">{{ m.nombre }}</option>{% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Descripción (si es bloque general)</label>
+              <input id="bs-desc" type="text" name="descripcion_bloque" placeholder="Ej. Acto Cívico / Orientación" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Docente *</label>
+              <select id="bs-docente" name="id_docente" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                {% for d in docentes %}<option value="{{ d.id }}" {{ 'selected' if d.id == seccion_actual.id_docente_titular_guia }}>{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold mb-1">Aula / Salón (opcional)</label>
+              <input id="bs-aula" type="text" name="aula" placeholder="Ej. Salón 4" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+          </div>
+          <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
+            <button type="button" onclick="cerrarModal('modal-bloque-seccion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Bloque</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+  {% else %}
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center text-center space-y-2">
+    <div class="p-3 rounded-full bg-slate-100 dark:bg-slate-800 text-black dark:text-white opacity-70">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    </div>
+    <p class="text-sm font-semibold text-black dark:text-white">
+      Sin secciones en {{ periodo.nombre if periodo else 'el período actual' }}
+    </p>
+    <p class="text-xs text-black dark:text-white opacity-70">
+      Aún no hay secciones activas o asignadas en este período escolar.
+    </p>
+    <div class="flex flex-wrap items-center justify-center gap-2 pt-2">
+      {% if usuario_actual.rol == 'admin' and periodo and periodo.activo and not periodo.cerrado %}
+      <a href="{{ url_for('academico.index') }}" class="btn px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Crear o Copiar Secciones</a>
+      {% endif %}
+      {% for p in periodos if not periodo or p.id != periodo.id %}
+      <form method="POST" action="{{ url_for('auth.cambiar_periodo_consulta') }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="id_periodo" value="{{ p.id }}">
+        <input type="hidden" name="next" value="{{ request.path }}">
+        <button type="submit" class="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Consultar {{ p.nombre }}
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let _cambiosPendientes = false;
+
+  function mostrarToastDinamico(msg, tipo) {
+    let cont = document.getElementById('toast-container');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'toast-container';
+      cont.className = 'no-print fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none';
+      document.body.appendChild(cont);
+    }
+    const item = document.createElement('div');
+    const esErr = tipo === 'error';
+    item.className = 'toast-item pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ' +
+      (esErr
+        ? 'bg-red-50 border-red-300 text-red-900 dark:bg-red-950 dark:border-red-800 dark:text-red-100'
+        : 'bg-white border-blue-300 text-black dark:bg-slate-900 dark:border-blue-700 dark:text-white');
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Cerrar';
+    btn.className = 'text-xs font-bold opacity-80 hover:opacity-100 shrink-0';
+    btn.onclick = () => cerrarToast(item);
+    item.appendChild(span);
+    item.appendChild(btn);
+    cont.appendChild(item);
+    requestAnimationFrame(() => item.classList.add('is-visible'));
+    setTimeout(() => { if (item.parentElement) cerrarToast(item); }, 4000);
+  }
+
+  async function cargarVistaSeccion(urlStr, pushHist) {
+    const ws = document.getElementById('seccion-workspace');
+    if (!ws) { window.location.href = urlStr; return; }
+    ws.style.opacity = '0.55';
+    try {
+      const fetchUrl = new URL(urlStr, window.location.origin);
+      fetchUrl.searchParams.set('parcial', '1');
+      const res = await fetch(fetchUrl.toString(), { headers: { 'X-Requested-With': 'fetch' } });
+      if (!res.ok) throw new Error('Error');
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const nuevo = doc.getElementById('seccion-workspace');
+      if (!nuevo) { window.location.href = urlStr; return; }
+      ws.innerHTML = nuevo.innerHTML;
+      if (pushHist) {
+        const cleanUrl = new URL(urlStr, window.location.origin);
+        cleanUrl.searchParams.delete('parcial');
+        window.history.pushState({}, '', cleanUrl.toString());
+      }
+      actualizarResumen();
+    } catch (_) {
+      window.location.href = urlStr;
+    } finally {
+      ws.style.opacity = '1';
+    }
+  }
+
+  function navegarTabSeccion(ev, href) {
+    if (_cambiosPendientes && !confirm('Tienes calificaciones modificadas sin guardar. ¿Cambiar de pestaña y descartar los cambios?')) {
+      ev.preventDefault();
+      return false;
+    }
+    _cambiosPendientes = false;
+    ev.preventDefault();
+    cargarVistaSeccion(href, true);
+    return false;
+  }
+
+  function marcarCambios() {
+    if (_cambiosPendientes) return;
+    _cambiosPendientes = true;
+    const badge = document.getElementById('badge-cambios');
+    if (badge) badge.classList.remove('hidden');
+  }
+
+  function cambiarGradoNotas(sel) {
+    if (_cambiosPendientes && !confirm('Tienes calificaciones modificadas sin guardar. ¿Cambiar de grado y descartar los cambios?')) {
+      return;
+    }
+    _cambiosPendientes = false;
+    const secSel = document.getElementById('sel-seccion-notas');
+    if (secSel) secSel.value = '';
+    const matSel = document.getElementById('sel-materia-notas');
+    if (matSel) matSel.value = '';
+    const params = new URLSearchParams(new FormData(sel.form));
+    cargarVistaSeccion(window.location.pathname + '?' + params.toString(), true);
+  }
+
+  function mostrarTodosLapsos() {
+    document.querySelectorAll('.col-l2, .col-l3, .col-def').forEach(el => el.classList.remove('hidden'));
+    const btn = document.getElementById('btn-mostrar-lapsos');
+    if (btn) btn.classList.add('hidden');
+  }
+
+  function cambiarSelectorNotas(sel) {
+    if (_cambiosPendientes && !confirm('Tienes calificaciones modificadas sin guardar. ¿Cambiar de vista y descartar los cambios?')) {
+      return;
+    }
+    _cambiosPendientes = false;
+    if (sel.name === 'id_seccion') {
+      const matSel = document.getElementById('sel-materia-notas');
+      if (matSel) matSel.value = '';
+    }
+    const params = new URLSearchParams(new FormData(sel.form));
+    cargarVistaSeccion(window.location.pathname + '?' + params.toString(), true);
+  }
+
+  // Cambio instantaneo de lapso en memoria (0 ms, sin ir al servidor)
+  function cambiarLapsoInstantaneo(lap) {
+    const key = lap === '1' ? 'l1' : (lap === '2' ? 'l2' : (lap === '3' ? 'l3' : 'final'));
+    const thPrim = document.getElementById('th-lapso-prim');
+    if (thPrim) {
+      thPrim.textContent = lap === '1' ? '1.er Lapso' : (lap === '2' ? '2.do Lapso' : (lap === '3' ? '3.er Lapso' : 'Definitiva'));
+    }
+    document.querySelectorAll('.celda-lapso-prim').forEach(td => {
+      td.textContent = td.dataset[key] || '-';
+    });
+
+    const thProm = document.getElementById('th-prom-lapso');
+    if (thProm) {
+      thProm.textContent = lap === '1' ? 'Prom. L1' : (lap === '2' ? 'Prom. L2' : (lap === '3' ? 'Prom. L3' : 'Prom. Final'));
+    }
+    document.querySelectorAll('.celda-nota-sec').forEach(td => {
+      const raw = td.dataset[key];
+      if (raw !== undefined && raw !== '') {
+        const n = parseFloat(raw);
+        const txt = Number.isInteger(n) ? String(n) : n.toFixed(1);
+        td.innerHTML = '<span class="font-bold ' + (n >= 10 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400') + '">' + txt + '</span>';
+      } else {
+        td.innerHTML = '<span class="opacity-50">-</span>';
+      }
+    });
+    document.querySelectorAll('.celda-prom-sec').forEach(td => {
+      td.textContent = td.dataset[key] || '-';
+    });
+
+    ['btn-sabana-excel', 'btn-sabana-pdf'].forEach(id => {
+      const a = document.getElementById(id);
+      if (!a) return;
+      const u = new URL(a.href, window.location.origin);
+      u.searchParams.set('lapso', lap);
+      a.href = u.pathname + u.search;
+    });
+  }
+
+  function validarNotaInput(el) {
+    let v = (el.value || '').replace(',', '.').replace(/[^0-9.]/g, '');
+    const partes = v.split('.');
+    if (partes.length > 2) v = partes[0] + '.' + partes.slice(1).join('');
+    if (partes.length === 2) v = partes[0].slice(0, 2) + '.' + partes[1].slice(0, 1);
+    else v = v.slice(0, 2);
+    el.value = v;
+    if (!v) {
+      el.style.borderColor = '';
+      el.dataset.invalida = '';
+      return;
+    }
+    const n = parseFloat(v);
+    if (isNaN(n) || n < 1 || n > 20) {
+      el.style.borderColor = '#dc2626';
+      el.dataset.invalida = '1';
+    } else {
+      el.style.borderColor = '';
+      el.dataset.invalida = '';
+    }
+  }
+
+  function formatearNotaBlur(el) {
+    if (el.readOnly) return;
+    const v = (el.value || '').trim();
+    if (!v) return;
+    const n = parseFloat(v);
+    if (isNaN(n) || n < 1 || n > 20) {
+      el.style.borderColor = '#dc2626';
+      el.dataset.invalida = '1';
+      return;
+    }
+    el.value = Number.isInteger(n) ? String(n) : n.toFixed(1);
+    el.style.borderColor = '';
+    el.dataset.invalida = '';
+  }
+
+  // Guardado asincrono de calificaciones sin recargar la pagina
+  document.addEventListener('submit', async function(e) {
+    const form = e.target;
+    if (!form || !form.classList.contains('form-guardar-notas')) return;
+    e.preventDefault();
+    const invalidas = form.querySelectorAll('.nota-num[data-invalida="1"]');
+    if (invalidas.length > 0) {
+      invalidas[0].focus();
+      mostrarToastDinamico('Las calificaciones numéricas deben estar entre 01 y 20.', 'error');
+      return;
+    }
+    const btns = form.querySelectorAll('button[type="submit"]');
+    btns.forEach(b => { b.disabled = true; b.dataset.txt = b.textContent; b.textContent = 'Guardando...'; });
+    try {
+      const res = await fetch(form.getAttribute('action') || window.location.href, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'X-Requested-With': 'fetch' }
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        mostrarToastDinamico(data.mensaje || 'Error al guardar calificaciones.', 'error');
+      } else {
+        _cambiosPendientes = false;
+        const badge = document.getElementById('badge-cambios');
+        if (badge) badge.classList.add('hidden');
+        mostrarToastDinamico(data.mensaje || 'Calificaciones guardadas.', 'success');
+      }
+    } catch (_) {
+      mostrarToastDinamico('Error de conexión al guardar.', 'error');
+    } finally {
+      btns.forEach(b => { b.disabled = false; b.textContent = b.dataset.txt || 'Guardar Calificaciones'; });
+    }
+  });
+
+  window.addEventListener('popstate', function() {
+    cargarVistaSeccion(window.location.href, false);
+  });
+
+  window.addEventListener('beforeunload', function(e) {
+    if (_cambiosPendientes) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  // Navegacion tipo Excel: Enter baja al siguiente alumno de la misma columna
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('nota-nav')) {
+      e.preventDefault();
+      const col = e.target.dataset.col;
+      const visibles = Array.from(document.querySelectorAll('.fila-nota'))
+        .filter(tr => !tr.classList.contains('hidden'))
+        .map(tr => tr.querySelector('.nota-nav[data-col="' + col + '"]'))
+        .filter(Boolean);
+      const idx = visibles.indexOf(e.target);
+      if (idx >= 0 && idx + 1 < visibles.length) {
+        visibles[idx + 1].focus();
+        if (typeof visibles[idx + 1].select === 'function') visibles[idx + 1].select();
+      }
+    }
+  });
+
+  // Calcula la definitiva literal (A-E) cuando los 3 lapsos de Primaria estan llenos
+  const LIT_VAL = { A: 5, B: 4, C: 3, D: 2, E: 1 };
+  const VAL_LIT = { 5: 'A', 4: 'B', 3: 'C', 2: 'D', 1: 'E' };
+  function recalcularFilaPrimaria(id) {
+    const l1 = document.getElementById('l1_' + id).value;
+    const l2 = document.getElementById('l2_' + id).value;
+    const l3 = document.getElementById('l3_' + id).value;
+    const defEl = document.getElementById('def_' + id);
+    if (l1 && l2 && l3) {
+      const prom = Math.round((LIT_VAL[l1] + LIT_VAL[l2] + LIT_VAL[l3]) / 3);
+      defEl.value = VAL_LIT[prom] || '';
+    } else {
+      defEl.value = '';
+    }
+    actualizarResumen();
+  }
+
+  // Calcula la definitiva MPPE redondeada cuando los 3 lapsos estan llenos (acepta decimales)
+  function recalcularFila(mid, iid) {
+    const l1 = parseFloat(document.getElementById('l1_' + mid + '_' + iid).value);
+    const l2 = parseFloat(document.getElementById('l2_' + mid + '_' + iid).value);
+    const l3 = parseFloat(document.getElementById('l3_' + mid + '_' + iid).value);
+    const defEl = document.getElementById('def_' + mid + '_' + iid);
+    if (!isNaN(l1) && !isNaN(l2) && !isNaN(l3) && l1 >= 1 && l1 <= 20 && l2 >= 1 && l2 <= 20 && l3 >= 1 && l3 <= 20) {
+      const defVal = Math.round((l1 + l2 + l3) / 3);
+      defEl.value = String(defVal);
+      actualizarBadge(mid, iid);
+    } else {
+      defEl.value = '';
+      actualizarBadge(mid, iid);
+    }
+  }
+
+  // Actualiza el badge Aprobado / Aplazado y el conteo general
+  function actualizarBadge(mid, iid) {
+    const val = parseInt(document.getElementById('def_' + mid + '_' + iid).value, 10);
+    const badge = document.getElementById('badge_' + mid + '_' + iid);
+    if (isNaN(val)) {
+      badge.textContent = '-';
+      badge.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-black dark:text-white dark:bg-slate-800';
+    } else if (val >= 10) {
+      badge.textContent = 'Aprobado';
+      badge.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300';
+    } else {
+      badge.textContent = 'Aplazado';
+      badge.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-800 dark:bg-red-950/60 dark:text-red-300';
+    }
+    actualizarResumen();
+  }
+
+  // Filtra filas por cedula o nombre sin perder los valores ingresados
+  function filtrarPlanillaNotas() {
+    const q = document.getElementById('filtro-notas').value.trim().toLowerCase();
+    document.querySelectorAll('.fila-nota').forEach(tr => {
+      tr.classList.toggle('hidden', q && !tr.dataset.search.includes(q));
+    });
+  }
+
+  // Actualiza el badge de resumen de la seccion
+  function actualizarResumen() {
+    const el = document.getElementById('resumen-notas');
+    if (!el) return;
+    const nums = document.querySelectorAll('.input-def-num');
+    if (nums.length > 0) {
+      let aprob = 0, aplaz = 0;
+      nums.forEach(i => {
+        const v = parseInt(i.value);
+        if (!isNaN(v)) { if (v >= 10) aprob++; else aplaz++; }
+      });
+      el.textContent = nums.length + ' alumnos · ' + aprob + ' aprobados · ' + aplaz + ' aplazados';
+      return;
+    }
+    const lits = document.querySelectorAll('.input-def-lit');
+    if (lits.length > 0) {
+      let cargados = 0;
+      lits.forEach(s => { if (s.value) cargados++; });
+      el.textContent = lits.length + ' alumnos · ' + cargados + ' con definitiva';
+    }
+  }
+  function autoSeleccionarDocenteSeccion(selMateria) {
+    const form = selMateria && selMateria.closest('form');
+    if (!form) return;
+    let mapa = {};
+    try { mapa = JSON.parse(form.dataset.asignaciones || '{}'); } catch (_) {}
+    const docSel = document.getElementById('bs-docente');
+    if (!docSel) return;
+    const mid = selMateria.value;
+    const targetDoc = mid && mapa[mid] ? String(mapa[mid]) : (form.dataset.guia || '');
+    if (targetDoc) {
+      docSel.value = targetDoc;
+    }
+  }
+
+  function abrirModalBloqueSeccion(btn, diaDefault) {
+    const form = document.getElementById('form-bloque-seccion');
+    const titulo = document.getElementById('titulo-modal-bloque-sec');
+    if (!form) return;
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/horarios/editar/' + btn.dataset.id;
+      if (titulo) titulo.textContent = 'Editar Bloque de Horario';
+      document.getElementById('bs-dia').value = btn.dataset.dia || '1';
+      document.getElementById('bs-hi').value = btn.dataset.hi || '07:00';
+      document.getElementById('bs-hf').value = btn.dataset.hf || '08:30';
+      document.getElementById('bs-materia').value = btn.dataset.materia || '';
+      document.getElementById('bs-desc').value = btn.dataset.desc || '';
+      document.getElementById('bs-docente').value = btn.dataset.docente || '';
+      document.getElementById('bs-aula').value = btn.dataset.aula || '';
+    } else {
+      form.action = form.dataset.crearUrl || '/horarios/crear';
+      if (titulo) titulo.textContent = 'Agregar Bloque de Horario';
+      document.getElementById('bs-dia').value = diaDefault || '1';
+      document.getElementById('bs-hi').value = '07:00';
+      document.getElementById('bs-hf').value = '08:30';
+      document.getElementById('bs-materia').value = '';
+      document.getElementById('bs-desc').value = '';
+      document.getElementById('bs-aula').value = '';
+      autoSeleccionarDocenteSeccion(document.getElementById('bs-materia'));
+    }
+    abrirModal('modal-bloque-seccion');
+  }
+
+  document.addEventListener('submit', async function(e) {
+    const form = e.target;
+    if (!form.classList) return;
+
+    const esAsign = form.classList.contains('form-asignaciones-seccion');
+    const esBloque = form.classList.contains('form-bloque-seccion');
+    const esDel = form.classList.contains('form-horario-seccion-del');
+    if (!esAsign && !esBloque && !esDel) return;
+
+    e.preventDefault();
+    if (esDel && !confirm(form.dataset.confirm || '¿Confirmar eliminación?')) return;
+
+    const fd = new FormData(form);
+    if (esAsign && e.submitter && e.submitter.name) {
+      fd.set(e.submitter.name, e.submitter.value);
+    }
+
+    try {
+      const resp = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: fd
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        mostrarToastDinamico(data.mensaje || 'No se pudo completar la operación.', 'error');
+        return;
+      }
+      if (esBloque) cerrarModal('modal-bloque-seccion');
+      mostrarToastDinamico(data.mensaje || 'Cambios guardados.', 'ok');
+      cargarVistaSeccion(window.location.href, false);
+    } catch (_) {
+      mostrarToastDinamico('Error de conexión al guardar.', 'error');
+    }
+  });
+
+  actualizarResumen();
+</script>
+{% endblock %}
