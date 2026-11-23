@@ -659,14 +659,8 @@ def generar_boletin_lapsos_pdf(detalle: dict, boletin: dict, cfg: dict) -> Bytes
         ]))
         elementos.append(t_sec)
 
-    elementos.append(Spacer(1, 28))
-    firmas = [[
-        Paragraph(f"___________________________<br/><b>{guia_label}</b><br/>{_esc(detalle.get('docente_guia_nombre') or '')}", st_sm),
-        Paragraph(f"___________________________<br/><b>Director(a)</b><br/>{_esc(cfg.get('director', ''))}", st_sm),
-        Paragraph("___________________________<br/><b>Representante Legal</b><br/>Firma de Recibido", st_sm),
-    ]]
-    t_f = Table(firmas, colWidths=[6.1 * cm, 6.2 * cm, 6.2 * cm])
-    elementos.append(KeepTogether([t_f, Spacer(1, 10), Paragraph(f"Emitido el {date.today().strftime('%d/%m/%Y')}", st_sm)]))
+    elementos.append(Spacer(1, 14))
+    elementos.append(Paragraph(f"Emitido el {date.today().strftime('%d/%m/%Y')}", st_sm))
     doc.build(elementos)
     buf.seek(0)
     return buf

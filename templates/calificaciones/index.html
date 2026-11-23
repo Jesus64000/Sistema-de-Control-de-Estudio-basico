@@ -317,7 +317,7 @@
               </td>
               <td class="px-4 py-2.5 opacity-80">{{ f.observaciones or '-' }}</td>
               <td class="px-3 py-2.5 text-right">
-                <a href="{{ url_for('reportes.boletin_pdf', id_inscripcion=f.id_inscripcion) }}" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">PDF</a>
+                <a href="{{ url_for('reportes.boletin_pdf', id_inscripcion=f.id_inscripcion) }}" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Descargar</a>
               </td>
             </tr>
             {% else %}
@@ -448,7 +448,7 @@
                 <span class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 font-bold">{{ est.prom_acumulado }}</span>
               </td>
               <td class="px-3 py-2.5 text-right">
-                <a href="{{ url_for('reportes.boletin_pdf', id_inscripcion=est.id_inscripcion) }}" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">PDF</a>
+                <a href="{{ url_for('reportes.boletin_pdf', id_inscripcion=est.id_inscripcion) }}" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Descargar</a>
               </td>
             </tr>
             {% else %}
