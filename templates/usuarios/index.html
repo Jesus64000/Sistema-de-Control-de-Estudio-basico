@@ -209,27 +209,49 @@
       <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Cuentas</div><h3 class="text-base font-bold text-white mt-0.5">Nuevo Usuario</h3></div>
       <button type="button" onclick="cerrarModal('modal-nuevo-usuario')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form method="POST" action="{{ url_for('usuarios.crear') }}" class="form-usuarios-async">
+    <form id="form-nuevo-usuario" method="POST" action="{{ url_for('usuarios.crear') }}" class="form-usuarios-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
-        <div><label class="block text-xs font-semibold mb-1">Nombre Completo *</label><input type="text" name="nombre" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Usuario *</label><input type="text" name="username" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Correo Electrónico (para recuperación)</label><input type="email" name="correo" placeholder="ejemplo@correo.com" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Contraseña Temporal (mín. 6) *</label><input type="password" name="password" required minlength="6" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
         <div>
-          <label class="block text-xs font-semibold mb-1">Rol</label>
-          <select name="rol" id="new-u-rol" onchange="toggleDocenteSelect('new')" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <label for="new-u-nombre" class="block text-xs font-semibold mb-1">Nombre Completo *</label>
+          <input id="new-u-nombre" type="text" name="nombre" required placeholder="Ej. María González" onblur="validarCampoUsr('new-u-nombre')" oninput="validarCampoUsr('new-u-nombre', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <p id="err-new-u-nombre" class="wiz-err hidden"></p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label for="new-u-username" class="block text-xs font-semibold mb-1">Usuario *</label>
+            <input id="new-u-username" type="text" name="username" required placeholder="Ej. mgonzalez" onblur="validarCampoUsr('new-u-username')" oninput="validarCampoUsr('new-u-username', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <p id="err-new-u-username" class="wiz-err hidden"></p>
+          </div>
+          <div>
+            <label for="new-u-pass" class="block text-xs font-semibold mb-1">Contraseña Temporal *</label>
+            <div class="flex gap-1.5">
+              <input id="new-u-pass" type="password" name="password" required minlength="6" placeholder="Mín. 6 caracteres" onblur="validarCampoUsr('new-u-pass')" oninput="validarCampoUsr('new-u-pass', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <button type="button" onclick="toggleVerClaveUsr('new-u-pass', this)" class="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium shrink-0">Ver</button>
+            </div>
+            <p id="err-new-u-pass" class="wiz-err hidden"></p>
+          </div>
+        </div>
+        <div>
+          <label for="new-u-correo" class="block text-xs font-semibold mb-1">Correo Electrónico (para recuperación)</label>
+          <input id="new-u-correo" type="email" name="correo" placeholder="ejemplo@correo.com" onblur="validarCampoUsr('new-u-correo')" oninput="validarCampoUsr('new-u-correo', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <p id="err-new-u-correo" class="wiz-err hidden"></p>
+        </div>
+        <div>
+          <label for="new-u-rol" class="block text-xs font-semibold mb-1">Rol</label>
+          <select name="rol" id="new-u-rol" onchange="toggleDocenteSelect('new')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
             <option value="operador">Operador / Secretaría</option>
             <option value="docente">Docente</option>
             <option value="admin">Administrador</option>
           </select>
         </div>
         <div id="new-u-docente-wrap" class="hidden">
-          <label class="block text-xs font-semibold mb-1">Vincular Docente *</label>
-          <select name="id_docente" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <label for="new-u-docente" class="block text-xs font-semibold mb-1">Vincular Docente *</label>
+          <select id="new-u-docente" name="id_docente" onchange="validarCampoUsr('new-u-docente')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
             <option value="">-- Seleccione Docente --</option>
             {% for d in docentes %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }} ({{ d.cedula }})</option>{% endfor %}
           </select>
+          <p id="err-new-u-docente" class="wiz-err hidden"></p>
         </div>
       </div>
       <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
@@ -247,25 +269,34 @@
       <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Permisos</div><h3 class="text-base font-bold text-white mt-0.5">Editar Usuario y Rol</h3></div>
       <button type="button" onclick="cerrarModal('modal-editar-usuario')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form id="form-editar-usuario" method="POST" class="form-usuarios-async">
+    <form id="form-editar-usuario" method="POST" class="form-usuarios-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
-        <div><label class="block text-xs font-semibold mb-1">Nombre Completo *</label><input type="text" id="edit-u-nombre" name="nombre" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Correo Electrónico (para recuperación)</label><input type="email" id="edit-u-correo" name="correo" placeholder="ejemplo@correo.com" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
         <div>
-          <label class="block text-xs font-semibold mb-1">Rol</label>
-          <select id="edit-u-rol" name="rol" onchange="toggleDocenteSelect('edit')" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <label for="edit-u-nombre" class="block text-xs font-semibold mb-1">Nombre Completo *</label>
+          <input type="text" id="edit-u-nombre" name="nombre" required onblur="validarCampoUsr('edit-u-nombre')" oninput="validarCampoUsr('edit-u-nombre', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <p id="err-edit-u-nombre" class="wiz-err hidden"></p>
+        </div>
+        <div>
+          <label for="edit-u-correo" class="block text-xs font-semibold mb-1">Correo Electrónico (para recuperación)</label>
+          <input type="email" id="edit-u-correo" name="correo" placeholder="ejemplo@correo.com" onblur="validarCampoUsr('edit-u-correo')" oninput="validarCampoUsr('edit-u-correo', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <p id="err-edit-u-correo" class="wiz-err hidden"></p>
+        </div>
+        <div>
+          <label for="edit-u-rol" class="block text-xs font-semibold mb-1">Rol</label>
+          <select id="edit-u-rol" name="rol" onchange="toggleDocenteSelect('edit')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
             <option value="operador">Operador / Secretaría</option>
             <option value="docente">Docente</option>
             <option value="admin">Administrador</option>
           </select>
         </div>
         <div id="edit-u-docente-wrap" class="hidden">
-          <label class="block text-xs font-semibold mb-1">Vincular Docente *</label>
-          <select id="edit-u-docente" name="id_docente" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <label for="edit-u-docente" class="block text-xs font-semibold mb-1">Vincular Docente *</label>
+          <select id="edit-u-docente" name="id_docente" onchange="validarCampoUsr('edit-u-docente')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
             <option value="">-- Seleccione Docente --</option>
             {% for d in docentes %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }} ({{ d.cedula }})</option>{% endfor %}
           </select>
+          <p id="err-edit-u-docente" class="wiz-err hidden"></p>
         </div>
       </div>
       <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
@@ -283,11 +314,18 @@
       <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Seguridad</div><h3 class="text-base font-bold text-white mt-0.5">Restablecer Contraseña</h3></div>
       <button type="button" onclick="cerrarModal('modal-reset-clave')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form id="form-reset-clave" method="POST" class="form-usuarios-async">
+    <form id="form-reset-clave" method="POST" class="form-usuarios-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
         <p class="text-xs text-black dark:text-white">Asignar clave temporal para <b id="reset-u-label"></b>:</p>
-        <input id="reset-u-pass" type="password" name="nueva_password" required minlength="6" placeholder="Mínimo 6 caracteres" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        <div>
+          <div class="flex gap-1.5">
+            <input id="reset-u-pass" type="password" name="nueva_password" required minlength="6" placeholder="Mínimo 6 caracteres" onblur="validarCampoUsr('reset-u-pass')" oninput="validarCampoUsr('reset-u-pass', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <button type="button" onclick="toggleVerClaveUsr('reset-u-pass', this)" class="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium shrink-0">Ver</button>
+            <button type="button" onclick="sugerirClaveReset()" class="px-2.5 py-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold shrink-0">Sugerir</button>
+          </div>
+          <p id="err-reset-u-pass" class="wiz-err hidden"></p>
+        </div>
       </div>
       <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
         <button type="button" onclick="cerrarModal('modal-reset-clave')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
@@ -408,10 +446,94 @@
     }
   }
 
+  function toggleVerClaveUsr(id, btn) {
+    const inp = document.getElementById(id);
+    if (!inp) return;
+    const esPwd = inp.type === 'password';
+    inp.type = esPwd ? 'text' : 'password';
+    if (btn) btn.textContent = esPwd ? 'Ocultar' : 'Ver';
+  }
+
+  function sugerirClaveReset() {
+    const inp = document.getElementById('reset-u-pass');
+    if (!inp) return;
+    const rand = Math.floor(100000 + Math.random() * 900000);
+    inp.type = 'text';
+    inp.value = 'Clave' + rand;
+    validarCampoUsr('reset-u-pass', false);
+  }
+
+  function _setErrUsr(id, msg, enVivo) {
+    const inp = document.getElementById(id);
+    const err = document.getElementById('err-' + id);
+    if (!inp || !err) return true;
+    if (msg) {
+      if (!enVivo || inp.dataset.tocado === '1') {
+        err.textContent = msg;
+        err.classList.remove('hidden');
+        inp.classList.add('is-invalid');
+        inp.classList.remove('is-valid');
+      }
+      return false;
+    }
+    err.textContent = '';
+    err.classList.add('hidden');
+    inp.classList.remove('is-invalid');
+    if (inp.value.trim()) inp.classList.add('is-valid');
+    else inp.classList.remove('is-valid');
+    return true;
+  }
+
+  function validarCampoUsr(id, enVivo) {
+    const inp = document.getElementById(id);
+    if (!inp) return true;
+    if (!enVivo) inp.dataset.tocado = '1';
+    const val = inp.value.trim();
+
+    if (id === 'new-u-nombre' || id === 'edit-u-nombre') {
+      if (!val || val.length < 3) return _setErrUsr(id, 'Ingresa el nombre completo (mín. 3 caracteres).', enVivo);
+      return _setErrUsr(id, '', enVivo);
+    }
+    if (id === 'new-u-username') {
+      if (!val || val.length < 3 || /\s/.test(val)) return _setErrUsr(id, 'Usuario sin espacios (mín. 3 caracteres).', enVivo);
+      return _setErrUsr(id, '', enVivo);
+    }
+    if (id === 'new-u-pass' || id === 'reset-u-pass') {
+      if (!val || val.length < 6) return _setErrUsr(id, 'La contraseña debe tener al menos 6 caracteres.', enVivo);
+      return _setErrUsr(id, '', enVivo);
+    }
+    if (id === 'new-u-correo' || id === 'edit-u-correo') {
+      if (!val) return _setErrUsr(id, '', enVivo);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) return _setErrUsr(id, 'Correo electrónico inválido.', enVivo);
+      return _setErrUsr(id, '', enVivo);
+    }
+    if (id === 'new-u-docente' || id === 'edit-u-docente') {
+      const prefix = id.startsWith('new') ? 'new' : 'edit';
+      const rol = (document.getElementById(prefix + '-u-rol') || {}).value;
+      if (rol === 'docente' && !val) return _setErrUsr(id, 'Debes seleccionar un docente para el rol Docente.', enVivo);
+      return _setErrUsr(id, '', enVivo);
+    }
+    return true;
+  }
+
+  function validarFormularioUsr(form) {
+    let campos = [];
+    if (form.id === 'form-nuevo-usuario') campos = ['new-u-nombre', 'new-u-username', 'new-u-pass', 'new-u-correo', 'new-u-docente'];
+    else if (form.id === 'form-editar-usuario') campos = ['edit-u-nombre', 'edit-u-correo', 'edit-u-docente'];
+    else if (form.id === 'form-reset-clave') campos = ['reset-u-pass'];
+    let ok = true;
+    campos.forEach(c => { if (!validarCampoUsr(c, false)) ok = false; });
+    return ok;
+  }
+
   document.addEventListener('submit', async function(e) {
     const form = e.target;
     if (!form.classList || !form.classList.contains('form-usuarios-async')) return;
     e.preventDefault();
+    if (!validarFormularioUsr(form)) {
+      mostrarToastUsr('Revisa los campos marcados en rojo.', 'error');
+      return;
+    }
     if (form.dataset.confirm && !(await pedirConfirmacion(form.dataset.confirm))) return;
 
     try {

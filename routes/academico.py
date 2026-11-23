@@ -6,6 +6,7 @@ from services.academico_service import (
     actualizar_grado,
     actualizar_materia,
     actualizar_periodo,
+    actualizar_seccion,
     asignar_docente_materia,
     asignar_titular_a_materias_primaria,
     cambiar_cierre_periodo,
@@ -375,6 +376,23 @@ def seccion_crear():
             int(id_doc) if id_doc else None,
         )
         return _respuesta_academico(True, "Sección creada.")
+    except Exception as err:
+        return _respuesta_academico(False, str(err))
+
+
+@academico_bp.route("/secciones/editar/<int:sid>", methods=["POST"])
+@admin_required
+def seccion_editar(sid: int):
+    try:
+        id_doc = request.form.get("id_docente_titular_guia")
+        actualizar_seccion(
+            sid,
+            int(request.form.get("id_grado_anio")),
+            request.form.get("nombre", ""),
+            request.form.get("turno", "Mañana"),
+            int(id_doc) if id_doc else None,
+        )
+        return _respuesta_academico(True, "Sección actualizada.")
     except Exception as err:
         return _respuesta_academico(False, str(err))
 

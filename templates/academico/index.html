@@ -77,7 +77,7 @@
             {% if periodos|length > 1 %}
             <button type="button" onclick="abrirModal('modal-copiar-secciones')" class="px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold">Copiar de Período Anterior</button>
             {% endif %}
-            <button type="button" onclick="abrirModal('modal-seccion')" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nueva Sección</button>
+            <button type="button" onclick="abrirModalSeccion()" class="px-3.5 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">+ Nueva Sección</button>
           {% endif %}
         </div>
       </div>
@@ -106,6 +106,16 @@
           </div>
           <div class="flex flex-wrap gap-2">
             {% if not solo_lectura %}
+            <button
+              type="button"
+              onclick="abrirModalSeccion(this)"
+              data-id="{{ s.id }}"
+              data-grado="{{ s.id_grado_anio }}"
+              data-nombre="{{ s.nombre }}"
+              data-turno="{{ s.turno }}"
+              data-guia="{{ s.id_docente_titular_guia or '' }}"
+              class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+            >Editar</button>
             <button type="button" onclick="abrirCambiarGuia({{ s.id }}, '{{ s.grado_nombre|e }} {{ s.nombre|e }}', '{{ s.id_docente_titular_guia or '' }}')" class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium">Titular / Guía</button>
             {% endif %}
             <a href="{{ url_for('calificaciones.index', id_periodo=periodo_seleccionado.id if periodo_seleccionado else None, id_grado=s.id_grado_anio, id_seccion=s.id) }}" class="px-3 py-1.5 text-xs rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Gestionar Sección</a>
@@ -430,26 +440,30 @@
   </div>
 </div>
 
-<!-- Modal Nueva Seccion -->
+<!-- Modal Crear / Editar Seccion -->
 <div id="modal-seccion" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
-    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
-      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Estructura</div><h3 class="text-base font-bold text-white mt-0.5">Nueva Sección</h3></div>
-      <button type="button" onclick="cerrarModal('modal-seccion')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Estructura</div><h3 id="titulo-modal-seccion" class="text-base font-bold text-white mt-0.5">Nueva Sección</h3></div>
+      <button type="button" onclick="cerrarModal('modal-seccion')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form method="POST" action="{{ url_for('academico.seccion_crear') }}" class="form-academico-async">
+    <form id="form-modal-seccion" method="POST" action="{{ url_for('academico.seccion_crear') }}" data-crear-url="{{ url_for('academico.seccion_crear') }}" class="form-academico-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
-        <div><label class="block text-xs font-semibold mb-1">Grado / Año *</label><select name="id_grado_anio" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for g in grados %}<option value="{{ g.id }}">{{ g.nivel_nombre }} — {{ g.nombre }}</option>{% endfor %}</select></div>
+        <div><label for="sec-grado" class="block text-xs font-semibold mb-1">Grado / Año *</label><select id="sec-grado" name="id_grado_anio" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for g in grados %}<option value="{{ g.id }}">{{ g.nivel_nombre }} — {{ g.nombre }}</option>{% endfor %}</select></div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="block text-xs font-semibold mb-1">Sección *</label><input type="text" name="nombre" placeholder="Ej. A" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-          <div><label class="block text-xs font-semibold mb-1">Turno</label><select name="turno" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Integral">Integral</option></select></div>
+          <div>
+            <label for="sec-nombre" class="block text-xs font-semibold mb-1">Sección *</label>
+            <input id="sec-nombre" type="text" name="nombre" maxlength="10" placeholder="Ej. A" required onblur="validarCampoAcad('sec-nombre')" oninput="validarCampoAcad('sec-nombre', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm uppercase">
+            <p id="err-sec-nombre" class="wiz-err hidden"></p>
+          </div>
+          <div><label for="sec-turno" class="block text-xs font-semibold mb-1">Turno</label><select id="sec-turno" name="turno" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="Mañana">Mañana</option><option value="Tarde">Tarde</option><option value="Integral">Integral</option></select></div>
         </div>
-        <div><label class="block text-xs font-semibold mb-1">Docente Titular / Profesor Guía</label><select name="id_docente_titular_guia" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="">-- Sin asignar --</option>{% for d in docentes if d.activo %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}</select></div>
+        <div><label for="sec-guia" class="block text-xs font-semibold mb-1">Docente Titular / Profesor Guía</label><select id="sec-guia" name="id_docente_titular_guia" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="">-- Sin asignar --</option>{% for d in docentes if d.activo %}<option value="{{ d.id }}">{{ d.apellidos }} {{ d.nombres }}</option>{% endfor %}</select></div>
       </div>
       <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
-        <button type="button" onclick="cerrarModal('modal-seccion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
-        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Crear Sección</button>
+        <button type="button" onclick="cerrarModal('modal-seccion')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" id="btn-guardar-seccion" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Crear Sección</button>
       </div>
     </form>
   </div>
@@ -572,14 +586,22 @@
       <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Pensum</div><h3 id="titulo-modal-materia" class="text-base font-bold text-white mt-0.5">Nueva Materia</h3></div>
       <button type="button" onclick="cerrarModal('modal-materia')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form id="form-modal-materia" method="POST" action="{{ url_for('academico.materia_crear') }}" data-crear-url="{{ url_for('academico.materia_crear') }}" class="form-academico-async">
+    <form id="form-modal-materia" method="POST" action="{{ url_for('academico.materia_crear') }}" data-crear-url="{{ url_for('academico.materia_crear') }}" class="form-academico-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
-        <div><label class="block text-xs font-semibold mb-1">Grado / Año *</label><select id="mat-grado" name="id_grado_anio" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for g in grados %}<option value="{{ g.id }}">{{ g.nivel_nombre }} — {{ g.nombre }}</option>{% endfor %}</select></div>
-        <div><label class="block text-xs font-semibold mb-1">Bloque de Formación *</label><select id="mat-bloque" name="id_bloque" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for b in bloques %}<option value="{{ b.id }}">{{ b.nombre }}</option>{% endfor %}</select></div>
+        <div><label for="mat-grado" class="block text-xs font-semibold mb-1">Grado / Año *</label><select id="mat-grado" name="id_grado_anio" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for g in grados %}<option value="{{ g.id }}">{{ g.nivel_nombre }} — {{ g.nombre }}</option>{% endfor %}</select></div>
+        <div><label for="mat-bloque" class="block text-xs font-semibold mb-1">Bloque de Formación *</label><select id="mat-bloque" name="id_bloque" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for b in bloques %}<option value="{{ b.id }}">{{ b.nombre }}</option>{% endfor %}</select></div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="block text-xs font-semibold mb-1">Nombre *</label><input id="mat-nombre" type="text" name="nombre" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-          <div><label class="block text-xs font-semibold mb-1">Código (opcional)</label><input id="mat-codigo" type="text" name="codigo" placeholder="Ej. MAT" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+          <div>
+            <label for="mat-nombre" class="block text-xs font-semibold mb-1">Nombre *</label>
+            <input id="mat-nombre" type="text" name="nombre" required onblur="validarCampoAcad('mat-nombre')" oninput="validarCampoAcad('mat-nombre', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <p id="err-mat-nombre" class="wiz-err hidden"></p>
+          </div>
+          <div>
+            <label for="mat-codigo" class="block text-xs font-semibold mb-1">Código (opcional)</label>
+            <input id="mat-codigo" type="text" name="codigo" maxlength="15" placeholder="Ej. MAT" onblur="validarCampoAcad('mat-codigo')" oninput="validarCampoAcad('mat-codigo', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm uppercase">
+            <p id="err-mat-codigo" class="wiz-err hidden"></p>
+          </div>
         </div>
         <label class="flex items-center gap-2 text-xs pt-1"><input id="mat-especial" type="checkbox" name="es_especial" value="1"> Materia Especial (ej. Educación Física)</label>
       </div>
@@ -594,16 +616,24 @@
 <!-- Modal Crear / Editar Grado / Ano -->
 <div id="modal-grado" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full shadow-xl overflow-hidden">
-    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
       <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Niveles</div><h3 id="titulo-modal-grado" class="text-base font-bold text-white mt-0.5">Nuevo Grado / Año</h3></div>
-      <button type="button" onclick="cerrarModal('modal-grado')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      <button type="button" onclick="cerrarModal('modal-grado')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form id="form-modal-grado" method="POST" action="{{ url_for('academico.grado_crear') }}" data-crear-url="{{ url_for('academico.grado_crear') }}" class="form-academico-async">
+    <form id="form-modal-grado" method="POST" action="{{ url_for('academico.grado_crear') }}" data-crear-url="{{ url_for('academico.grado_crear') }}" class="form-academico-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
-        <div><label class="block text-xs font-semibold mb-1">Nivel Educativo</label><select id="grd-nivel" name="id_nivel" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for n in niveles %}<option value="{{ n.id }}">{{ n.nombre }}</option>{% endfor %}</select></div>
-        <div><label class="block text-xs font-semibold mb-1">Nombre *</label><input id="grd-nombre" type="text" name="nombre" placeholder="Ej. 1.º Grado o 1.º Año" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Orden</label><input id="grd-orden" type="number" name="orden" value="1" min="1" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+        <div><label for="grd-nivel" class="block text-xs font-semibold mb-1">Nivel Educativo</label><select id="grd-nivel" name="id_nivel" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">{% for n in niveles %}<option value="{{ n.id }}">{{ n.nombre }}</option>{% endfor %}</select></div>
+        <div>
+          <label for="grd-nombre" class="block text-xs font-semibold mb-1">Nombre *</label>
+          <input id="grd-nombre" type="text" name="nombre" placeholder="Ej. 1.º Grado o 1.º Año" required onblur="validarCampoAcad('grd-nombre')" oninput="validarCampoAcad('grd-nombre', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <p id="err-grd-nombre" class="wiz-err hidden"></p>
+        </div>
+        <div>
+          <label for="grd-orden" class="block text-xs font-semibold mb-1">Orden *</label>
+          <input id="grd-orden" type="number" name="orden" value="1" min="1" required onblur="validarCampoAcad('grd-orden')" oninput="validarCampoAcad('grd-orden', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+          <p id="err-grd-orden" class="wiz-err hidden"></p>
+        </div>
       </div>
       <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
         <button type="button" onclick="cerrarModal('modal-grado')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
@@ -616,25 +646,27 @@
 <!-- Modal Crear / Editar Periodo -->
 <div id="modal-periodo" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-sm w-full shadow-xl overflow-hidden">
-    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
       <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Calendario</div><h3 id="titulo-modal-periodo" class="text-base font-bold text-white mt-0.5">Nuevo Período Escolar</h3></div>
-      <button type="button" onclick="cerrarModal('modal-periodo')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+      <button type="button" onclick="cerrarModal('modal-periodo')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
-    <form id="form-modal-periodo" method="POST" action="{{ url_for('academico.periodo_crear') }}" data-crear-url="{{ url_for('academico.periodo_crear') }}" class="form-academico-async">
+    <form id="form-modal-periodo" method="POST" action="{{ url_for('academico.periodo_crear') }}" data-crear-url="{{ url_for('academico.periodo_crear') }}" class="form-academico-async" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <div class="p-6 space-y-3">
         <div>
-          <label class="block text-xs font-semibold mb-1">Nombre del Período *</label>
-          <input id="per-nombre" type="text" name="nombre" placeholder="Ej. 2026-2027" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <label for="per-nombre" class="block text-xs font-semibold mb-1">Nombre del Período *</label>
+          <input id="per-nombre" type="text" name="nombre" placeholder="Ej. 2026-2027" required onblur="validarCampoAcad('per-nombre')" oninput="validarCampoAcad('per-nombre', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+          <p id="err-per-nombre" class="wiz-err hidden"></p>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-semibold mb-1">Fecha Inicio</label>
-            <input id="per-inicio" type="date" name="fecha_inicio" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <label for="per-inicio" class="block text-xs font-semibold mb-1">Fecha Inicio</label>
+            <input id="per-inicio" type="date" name="fecha_inicio" onchange="validarCampoAcad('per-fin')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
           </div>
           <div>
-            <label class="block text-xs font-semibold mb-1">Fecha Fin</label>
-            <input id="per-fin" type="date" name="fecha_fin" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <label for="per-fin" class="block text-xs font-semibold mb-1">Fecha Fin</label>
+            <input id="per-fin" type="date" name="fecha_fin" onchange="validarCampoAcad('per-fin')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            <p id="err-per-fin" class="wiz-err hidden"></p>
           </div>
         </div>
       </div>
@@ -722,6 +754,94 @@
       const okTxt = !q || el.dataset.search.includes(q);
       el.classList.toggle('hidden', !(okGrado && okTxt));
     });
+  }
+
+  function _setErrAcad(id, msg, enVivo) {
+    const inp = document.getElementById(id);
+    const err = document.getElementById('err-' + id);
+    if (!inp || !err) return true;
+    if (msg) {
+      if (!enVivo || inp.dataset.tocado === '1') {
+        err.textContent = msg;
+        err.classList.remove('hidden');
+        inp.classList.add('is-invalid');
+        inp.classList.remove('is-valid');
+      }
+      return false;
+    }
+    err.textContent = '';
+    err.classList.add('hidden');
+    inp.classList.remove('is-invalid');
+    if (inp.value.trim()) inp.classList.add('is-valid');
+    else inp.classList.remove('is-valid');
+    return true;
+  }
+
+  function _limpiarValidacionAcad(ids) {
+    ids.forEach(id => {
+      const inp = document.getElementById(id);
+      const err = document.getElementById('err-' + id);
+      if (inp) { inp.classList.remove('is-invalid', 'is-valid'); delete inp.dataset.tocado; }
+      if (err) { err.textContent = ''; err.classList.add('hidden'); }
+    });
+  }
+
+  function validarCampoAcad(id, enVivo) {
+    const inp = document.getElementById(id);
+    if (!inp) return true;
+    if (!enVivo) inp.dataset.tocado = '1';
+    const val = inp.value.trim();
+
+    if (id === 'sec-nombre') {
+      if (!val || val.length > 10) return _setErrAcad(id, 'Ingresa el nombre de la sección (ej. A, B, máx. 10 chars).', enVivo);
+      return _setErrAcad(id, '', enVivo);
+    }
+    if (id === 'mat-nombre' || id === 'grd-nombre') {
+      if (!val || val.length < 2) return _setErrAcad(id, 'Debe tener al menos 2 caracteres.', enVivo);
+      return _setErrAcad(id, '', enVivo);
+    }
+    if (id === 'mat-codigo') {
+      if (!val) return _setErrAcad(id, '', enVivo);
+      if (!/^[A-Za-z0-9\-_]{1,15}$/.test(val)) return _setErrAcad(id, 'Solo letras, números o guion (máx. 15).', enVivo);
+      return _setErrAcad(id, '', enVivo);
+    }
+    if (id === 'grd-orden') {
+      const n = Number(val);
+      if (!val || Number.isNaN(n) || n < 1) return _setErrAcad(id, 'El orden debe ser mayor o igual a 1.', enVivo);
+      return _setErrAcad(id, '', enVivo);
+    }
+    if (id === 'per-nombre') {
+      if (!/^\d{4}-\d{4}$/.test(val)) return _setErrAcad(id, 'Usa formato YYYY-YYYY (ej. 2026-2027).', enVivo);
+      return _setErrAcad(id, '', enVivo);
+    }
+    if (id === 'per-fin') {
+      const ini = (document.getElementById('per-inicio') || {}).value || '';
+      if (ini && val && val <= ini) return _setErrAcad(id, 'La fecha fin debe ser posterior a la fecha inicio.', false);
+      return _setErrAcad(id, '', false);
+    }
+    return true;
+  }
+
+  function abrirModalSeccion(btn) {
+    const form = document.getElementById('form-modal-seccion');
+    const tit = document.getElementById('titulo-modal-seccion');
+    const btnG = document.getElementById('btn-guardar-seccion');
+    _limpiarValidacionAcad(['sec-nombre']);
+    if (btn && btn.dataset && btn.dataset.id) {
+      form.action = '/academico/secciones/editar/' + btn.dataset.id;
+      tit.textContent = 'Editar Sección';
+      if (btnG) btnG.textContent = 'Guardar Cambios';
+      document.getElementById('sec-grado').value = btn.dataset.grado || '';
+      document.getElementById('sec-nombre').value = btn.dataset.nombre || '';
+      document.getElementById('sec-turno').value = btn.dataset.turno || 'Mañana';
+      document.getElementById('sec-guia').value = btn.dataset.guia || '';
+    } else {
+      form.action = form.dataset.crearUrl;
+      tit.textContent = 'Nueva Sección';
+      if (btnG) btnG.textContent = 'Crear Sección';
+      form.reset();
+    }
+    abrirModal('modal-seccion');
   }
 
   function abrirCambiarGuia(idSeccion, nombreSeccion, idDocente) {
@@ -999,6 +1119,22 @@
     e.preventDefault();
     if (form.id === 'form-modal-docente' && !validarFormularioDocente()) {
       mostrarToastAcademico('Revisa los campos marcados en rojo antes de guardar.', 'error');
+      return;
+    }
+    if (form.id === 'form-modal-seccion' && !validarCampoAcad('sec-nombre', false)) {
+      mostrarToastAcademico('Revisa el nombre de la sección.', 'error');
+      return;
+    }
+    if (form.id === 'form-modal-materia' && (!validarCampoAcad('mat-nombre', false) || !validarCampoAcad('mat-codigo', false))) {
+      mostrarToastAcademico('Revisa los datos de la materia.', 'error');
+      return;
+    }
+    if (form.id === 'form-modal-grado' && (!validarCampoAcad('grd-nombre', false) || !validarCampoAcad('grd-orden', false))) {
+      mostrarToastAcademico('Revisa los datos del grado o año.', 'error');
+      return;
+    }
+    if (form.id === 'form-modal-periodo' && (!validarCampoAcad('per-nombre', false) || !validarCampoAcad('per-fin', false))) {
+      mostrarToastAcademico('Revisa el nombre y las fechas del período.', 'error');
       return;
     }
     if (form.dataset.confirm && !(await pedirConfirmacion(form.dataset.confirm))) return;

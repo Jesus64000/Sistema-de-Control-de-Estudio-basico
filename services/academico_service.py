@@ -553,12 +553,33 @@ def listar_secciones_con_resumen(id_periodo: int):
 def crear_seccion(id_periodo: int, id_grado_anio: int, nombre: str, turno: str = "Mañana", id_docente: int = None):
     verificar_periodo_editable(id_periodo)
     nombre = nombre.strip().upper()
-    if not nombre:
-        raise ValueError("El nombre de la sección es obligatorio (ej. A, B).")
+    if not nombre or len(nombre) > 10:
+        raise ValueError("El nombre de la sección es obligatorio (ej. A, B, máximo 10 caracteres).")
     return ejecutar_accion(
         "INSERT INTO secciones (id_periodo, id_grado_anio, nombre, turno, id_docente_titular_guia, activo) "
         "VALUES (%s, %s, %s, %s, %s, TRUE)",
         (id_periodo, id_grado_anio, nombre, turno, id_docente or None),
+    )
+
+
+def actualizar_seccion(sid: int, id_grado_anio: int, nombre: str, turno: str = "Mañana", id_docente: int = None):
+    sec = ejecutar_consulta("SELECT id, id_periodo FROM secciones WHERE id = %s LIMIT 1", (sid,), uno=True)
+    if not sec:
+        raise ValueError("Sección no encontrada.")
+    verificar_periodo_editable(sec["id_periodo"])
+    nombre = nombre.strip().upper()
+    if not nombre or len(nombre) > 10:
+        raise ValueError("El nombre de la sección es obligatorio (máximo 10 caracteres).")
+    dup = ejecutar_consulta(
+        "SELECT id FROM secciones WHERE id_periodo = %s AND id_grado_anio = %s AND nombre = %s AND id <> %s LIMIT 1",
+        (sec["id_periodo"], id_grado_anio, nombre, sid),
+        uno=True,
+    )
+    if dup:
+        raise ValueError(f"Ya existe la sección \"{nombre}\" en ese grado/año para este período.")
+    ejecutar_accion(
+        "UPDATE secciones SET id_grado_anio = %s, nombre = %s, turno = %s, id_docente_titular_guia = %s WHERE id = %s",
+        (id_grado_anio, nombre, turno, id_docente or None, sid),
     )
 
 

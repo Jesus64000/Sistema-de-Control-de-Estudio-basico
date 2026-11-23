@@ -293,7 +293,7 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
-    <form id="form-editar-estudiante" method="POST">
+    <form id="form-editar-estudiante" method="POST" novalidate>
       <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
       <input type="hidden" id="ed-id-inscripcion" name="id_inscripcion">
       <div class="p-6 max-h-[72vh] overflow-y-auto space-y-5">
@@ -301,12 +301,13 @@
           <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-3">1. Datos del Estudiante</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold mb-1">Cédula / Cédula Escolar *</label>
-              <input type="text" id="ed-cedula" name="cedula" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-cedula" class="block text-xs font-semibold mb-1">Cédula / Cédula Escolar *</label>
+              <input type="text" id="ed-cedula" name="cedula" required onblur="validarCampoEditarEst('ed-cedula')" oninput="validarCampoEditarEst('ed-cedula', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              <p id="err-ed-cedula" class="wiz-err hidden"></p>
             </div>
             <div id="ed-seccion-wrap">
-              <label class="block text-xs font-semibold mb-1">Sección</label>
-              <select id="ed-seccion" name="id_seccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-seccion" class="block text-xs font-semibold mb-1">Sección</label>
+              <select id="ed-seccion" name="id_seccion" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <option value="">-- Sin cambio / Sin matrícula --</option>
                 {% for s in secciones_consulta %}
                 <option value="{{ s.id }}">{{ s.nivel_nombre }} · {{ s.grado_nombre }} "{{ s.nombre }}"</option>
@@ -314,8 +315,8 @@
               </select>
             </div>
             <div id="ed-condicion-wrap">
-              <label class="block text-xs font-semibold mb-1">Condición de Inscripción</label>
-              <select id="ed-condicion" name="condicion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-condicion" class="block text-xs font-semibold mb-1">Condición de Inscripción</label>
+              <select id="ed-condicion" name="condicion" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <option value="regular">Regular / Promovido</option>
                 <option value="materia_pendiente">Con Materia(s) Pendiente(s)</option>
                 <option value="repitiente">Repitiente</option>
@@ -323,27 +324,31 @@
               </select>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Apellidos *</label>
-              <input type="text" id="ed-apellidos" name="apellidos" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-apellidos" class="block text-xs font-semibold mb-1">Apellidos *</label>
+              <input type="text" id="ed-apellidos" name="apellidos" required onblur="validarCampoEditarEst('ed-apellidos')" oninput="validarCampoEditarEst('ed-apellidos', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-apellidos" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Nombres *</label>
-              <input type="text" id="ed-nombres" name="nombres" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-nombres" class="block text-xs font-semibold mb-1">Nombres *</label>
+              <input type="text" id="ed-nombres" name="nombres" required onblur="validarCampoEditarEst('ed-nombres')" oninput="validarCampoEditarEst('ed-nombres', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-nombres" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Género</label>
-              <select id="ed-genero" name="genero" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-genero" class="block text-xs font-semibold mb-1">Género</label>
+              <select id="ed-genero" name="genero" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <option value="M">Masculino</option>
                 <option value="F">Femenino</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Fecha de Nacimiento</label>
-              <input type="date" id="ed-fnac" name="fecha_nacimiento" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-fnac" class="block text-xs font-semibold mb-1">Fecha de Nacimiento</label>
+              <input type="date" id="ed-fnac" name="fecha_nacimiento" onchange="validarCampoEditarEst('ed-fnac')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-fnac" class="wiz-err hidden"></p>
             </div>
             <div class="sm:col-span-2">
-              <label class="block text-xs font-semibold mb-1">Dirección del Estudiante</label>
-              <input type="text" id="ed-dir" name="direccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-dir" class="block text-xs font-semibold mb-1">Dirección del Estudiante</label>
+              <input type="text" id="ed-dir" name="direccion" onblur="validarCampoEditarEst('ed-dir')" oninput="validarCampoEditarEst('ed-dir', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-dir" class="wiz-err hidden"></p>
             </div>
           </div>
         </div>
@@ -352,40 +357,47 @@
           <div class="text-xs font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 mb-3">2. Padre / Madre o Representante Legal</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs font-semibold mb-1">Cédula Representante *</label>
-              <input type="text" id="ed-rep-ci" name="rep_cedula" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-ci" class="block text-xs font-semibold mb-1">Cédula Representante *</label>
+              <input type="text" id="ed-rep-ci" name="rep_cedula" required onblur="validarCampoEditarEst('ed-rep-ci')" oninput="validarCampoEditarEst('ed-rep-ci', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              <p id="err-ed-rep-ci" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Parentesco</label>
-              <select id="ed-rep-par" name="rep_parentesco" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-par" class="block text-xs font-semibold mb-1">Parentesco</label>
+              <select id="ed-rep-par" name="rep_parentesco" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <option value="Madre">Madre</option>
                 <option value="Padre">Padre</option>
                 <option value="Representante Legal">Representante Legal</option>
               </select>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Apellidos Representante *</label>
-              <input type="text" id="ed-rep-ape" name="rep_apellidos" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-ape" class="block text-xs font-semibold mb-1">Apellidos Representante *</label>
+              <input type="text" id="ed-rep-ape" name="rep_apellidos" required onblur="validarCampoEditarEst('ed-rep-ape')" oninput="validarCampoEditarEst('ed-rep-ape', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-rep-ape" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Nombres Representante *</label>
-              <input type="text" id="ed-rep-nom" name="rep_nombres" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-nom" class="block text-xs font-semibold mb-1">Nombres Representante *</label>
+              <input type="text" id="ed-rep-nom" name="rep_nombres" required onblur="validarCampoEditarEst('ed-rep-nom')" oninput="validarCampoEditarEst('ed-rep-nom', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-rep-nom" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Teléfono Personal *</label>
-              <input type="text" id="ed-rep-tel" name="rep_telefono" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-tel" class="block text-xs font-semibold mb-1">Teléfono Personal *</label>
+              <input type="text" id="ed-rep-tel" name="rep_telefono" required onblur="validarCampoEditarEst('ed-rep-tel')" oninput="validarCampoEditarEst('ed-rep-tel', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              <p id="err-ed-rep-tel" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Teléfono de Trabajo</label>
-              <input type="text" id="ed-rep-telt" name="rep_telefono_trabajo" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-telt" class="block text-xs font-semibold mb-1">Teléfono de Trabajo</label>
+              <input type="text" id="ed-rep-telt" name="rep_telefono_trabajo" onblur="validarCampoEditarEst('ed-rep-telt')" oninput="validarCampoEditarEst('ed-rep-telt', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              <p id="err-ed-rep-telt" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Correo Electrónico</label>
-              <input type="email" id="ed-rep-cor" name="rep_correo" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-cor" class="block text-xs font-semibold mb-1">Correo Electrónico</label>
+              <input type="email" id="ed-rep-cor" name="rep_correo" onblur="validarCampoEditarEst('ed-rep-cor')" oninput="validarCampoEditarEst('ed-rep-cor', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-rep-cor" class="wiz-err hidden"></p>
             </div>
             <div>
-              <label class="block text-xs font-semibold mb-1">Dirección del Representante</label>
-              <input type="text" id="ed-rep-dir" name="rep_direccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <label for="ed-rep-dir" class="block text-xs font-semibold mb-1">Dirección del Representante</label>
+              <input type="text" id="ed-rep-dir" name="rep_direccion" onblur="validarCampoEditarEst('ed-rep-dir')" oninput="validarCampoEditarEst('ed-rep-dir', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-ed-rep-dir" class="wiz-err hidden"></p>
             </div>
           </div>
         </div>
@@ -835,6 +847,106 @@
       btnEgr.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold border border-emerald-300 text-emerald-700 dark:border-emerald-900 dark:text-emerald-400';
     }
     abrirModal('modal-editar-estudiante');
+    _limpiarValidacionEditarEst();
+  }
+
+  function _setErrEditarEst(id, msg, enVivo) {
+    const inp = document.getElementById(id);
+    const err = document.getElementById('err-' + id);
+    if (!inp || !err) return true;
+    if (msg) {
+      if (!enVivo || inp.dataset.tocado === '1') {
+        err.textContent = msg;
+        err.classList.remove('hidden');
+        inp.classList.add('is-invalid');
+        inp.classList.remove('is-valid');
+      }
+      return false;
+    }
+    err.textContent = '';
+    err.classList.add('hidden');
+    inp.classList.remove('is-invalid');
+    if (inp.value.trim()) inp.classList.add('is-valid');
+    else inp.classList.remove('is-valid');
+    return true;
+  }
+
+  function _limpiarValidacionEditarEst() {
+    ['ed-cedula', 'ed-apellidos', 'ed-nombres', 'ed-fnac', 'ed-dir', 'ed-rep-ci', 'ed-rep-ape', 'ed-rep-nom', 'ed-rep-tel', 'ed-rep-telt', 'ed-rep-cor', 'ed-rep-dir'].forEach(id => {
+      const inp = document.getElementById(id);
+      const err = document.getElementById('err-' + id);
+      if (inp) { inp.classList.remove('is-invalid', 'is-valid'); delete inp.dataset.tocado; }
+      if (err) { err.textContent = ''; err.classList.add('hidden'); }
+    });
+  }
+
+  function validarCampoEditarEst(id, enVivo) {
+    const inp = document.getElementById(id);
+    if (!inp) return true;
+    if (!enVivo) inp.dataset.tocado = '1';
+    const val = inp.value.trim();
+
+    if (id === 'ed-cedula' || id === 'ed-rep-ci') {
+      if (!val) return _setErrEditarEst(id, 'La cédula es obligatoria.', enVivo);
+      const norm = val.toUpperCase().replace(/\s+/g, '');
+      const m = norm.match(/^([VE])?-?(\d{6,12})$/);
+      if (!m) return _setErrEditarEst(id, 'Formato válido: V-12345678 o E-12345678 (6 a 12 dígitos).', enVivo);
+      if (!enVivo) inp.value = (m[1] || 'V') + '-' + m[2];
+      return _setErrEditarEst(id, '', enVivo);
+    }
+    if (id === 'ed-apellidos' || id === 'ed-nombres' || id === 'ed-rep-ape' || id === 'ed-rep-nom') {
+      if (!val) return _setErrEditarEst(id, 'Este campo es obligatorio.', enVivo);
+      if (val.length < 2) return _setErrEditarEst(id, 'Debe tener al menos 2 caracteres.', enVivo);
+      if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñÜü'\-\s]+$/.test(val)) {
+        return _setErrEditarEst(id, 'Solo se permiten letras y espacios.', enVivo);
+      }
+      return _setErrEditarEst(id, '', enVivo);
+    }
+    if (id === 'ed-fnac') {
+      if (!val) return _setErrEditarEst(id, '', enVivo);
+      const d = new Date(val + 'T00:00:00');
+      const hoy = new Date();
+      if (Number.isNaN(d.getTime()) || d >= hoy || d.getFullYear() < 1995) {
+        return _setErrEditarEst(id, 'Fecha de nacimiento inválida.', enVivo);
+      }
+      return _setErrEditarEst(id, '', enVivo);
+    }
+    if (id === 'ed-rep-tel' || id === 'ed-rep-telt') {
+      const oblig = id === 'ed-rep-tel';
+      if (!val) return oblig ? _setErrEditarEst(id, 'El teléfono es obligatorio.', enVivo) : _setErrEditarEst(id, '', enVivo);
+      const dig = val.replace(/\D/g, '');
+      if (!/^0(2|4)\d{9}$/.test(dig)) {
+        return _setErrEditarEst(id, 'Teléfono venezolano de 11 dígitos (ej. 0414-1234567).', enVivo);
+      }
+      if (!enVivo) inp.value = dig.slice(0, 4) + '-' + dig.slice(4);
+      return _setErrEditarEst(id, '', enVivo);
+    }
+    if (id === 'ed-rep-cor') {
+      if (!val) return _setErrEditarEst(id, '', enVivo);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) {
+        return _setErrEditarEst(id, 'Correo electrónico inválido.', enVivo);
+      }
+      return _setErrEditarEst(id, '', enVivo);
+    }
+    if (id === 'ed-dir' || id === 'ed-rep-dir') {
+      if (!val) return _setErrEditarEst(id, '', enVivo);
+      if (val.length < 5) return _setErrEditarEst(id, 'Si se indica, debe tener al menos 5 caracteres.', enVivo);
+      return _setErrEditarEst(id, '', enVivo);
+    }
+    return true;
+  }
+
+  const _formEdEst = document.getElementById('form-editar-estudiante');
+  if (_formEdEst) {
+    _formEdEst.addEventListener('submit', function(ev) {
+      const campos = ['ed-cedula', 'ed-apellidos', 'ed-nombres', 'ed-fnac', 'ed-dir', 'ed-rep-ci', 'ed-rep-ape', 'ed-rep-nom', 'ed-rep-tel', 'ed-rep-telt', 'ed-rep-cor', 'ed-rep-dir'];
+      let ok = true;
+      campos.forEach(c => { if (!validarCampoEditarEst(c, false)) ok = false; });
+      if (!ok) {
+        ev.preventDefault();
+        mostrarToast('Revisa los campos marcados en rojo antes de guardar.', 'error');
+      }
+    });
   }
 
   function cambiarEstadoDesdeEditar() {
