@@ -348,7 +348,7 @@ def excel_sabana(id_seccion: int):
     if sec["tipo_escala"] == "literal":
         filas = obtener_notas_primaria_seccion(id_seccion)
         buf = exportar_sabana_primaria(sec, filas, cfg.get("nombre_plantel", "Plantel"))
-        nombre = f"Sabana_{sec['grado_nombre']}_{sec['nombre']}.xlsx".replace(" ", "_")
+        nombre = f"Resumen_Calificaciones_{sec['grado_nombre']}_{sec['nombre']}.xlsx".replace(" ", "_")
     else:
         lapso = request.args.get("lapso", "final")
         materias = listar_materias(sec["id_grado_anio"], solo_activas=True)
@@ -356,7 +356,7 @@ def excel_sabana(id_seccion: int):
         buf = exportar_sabana_secundaria(
             sec, materias, sabana, cfg.get("nombre_plantel", "Plantel"), periodo["nombre"], lapso=lapso
         )
-        nombre = f"Sabana_{sec['grado_nombre']}_{sec['nombre']}_{lapso}.xlsx".replace(" ", "_")
+        nombre = f"Resumen_Calificaciones_{sec['grado_nombre']}_{sec['nombre']}_{lapso}.xlsx".replace(" ", "_")
     return send_file(
         buf,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -370,7 +370,7 @@ def excel_sabana(id_seccion: int):
 def pdf_sabana(id_seccion: int):
     periodo, sec = _resolver_seccion_autorizada(id_seccion, solo_guia_docente=True)
     if not sec or sec["tipo_escala"] != "numerica":
-        flash("Sábana PDF disponible para Media General (Admin, Operador o Profesor Guía).", "error")
+        flash("Resumen de calificaciones PDF disponible para Media General (Admin, Operador o Profesor Guía).", "error")
         return redirect(url_for("calificaciones.index"))
     lapso = request.args.get("lapso", "final")
     materias = listar_materias(sec["id_grado_anio"], solo_activas=True)
@@ -378,7 +378,7 @@ def pdf_sabana(id_seccion: int):
     pdf_buf = generar_sabana_secundaria_pdf(
         sec, materias, sabana, obtener_configuracion(), periodo["nombre"], lapso=lapso
     )
-    nombre = f"Sabana_{sec['grado_nombre']}_{sec['nombre']}_{lapso}.pdf".replace(" ", "_")
+    nombre = f"Resumen_Calificaciones_{sec['grado_nombre']}_{sec['nombre']}_{lapso}.pdf".replace(" ", "_")
     return send_file(pdf_buf, mimetype="application/pdf", as_attachment=True, download_name=nombre)
 
 

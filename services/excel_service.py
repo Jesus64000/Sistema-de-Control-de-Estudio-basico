@@ -88,7 +88,7 @@ def exportar_nomina_estudiantes(inscripciones: list, plantel: str, periodo: str)
 def exportar_sabana_primaria(seccion_info: dict, filas: list, plantel: str) -> BytesIO:
     wb = Workbook()
     ws = wb.active
-    ws.title = "Sábana Primaria"
+    ws.title = "Resumen Primaria"
     cols = ["#", "Cédula", "Apellidos y Nombres", "Lapso 1", "Lapso 2", "Lapso 3", "Definitiva", "Observaciones"]
     sub = f"{seccion_info['grado_nombre']} Sección {seccion_info['nombre']} — Educación Primaria"
     row = _escribir_encabezado(ws, plantel, sub, cols)
@@ -152,7 +152,7 @@ def exportar_sabana_secundaria(
     """Exporta la sabana completa de Media General (todas las materias en una hoja)."""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Sábana Media General"
+    ws.title = "Resumen Media General"
     etiquetas_lapso = {
         "1": "1.er Lapso",
         "2": "2.do Lapso",

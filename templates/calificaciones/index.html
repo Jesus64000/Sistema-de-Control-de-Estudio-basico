@@ -272,11 +272,11 @@
           </a>
           {% if puede_sabana %}
           <a id="btn-sabana-excel" href="{{ url_for('reportes.excel_sabana', id_seccion=seccion_actual.id, id_periodo=id_periodo, lapso=lapso) }}" class="btn px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
-            Sábana Excel
+            Resumen Excel
           </a>
           {% if seccion_actual.tipo_escala == 'numerica' %}
           <a id="btn-sabana-pdf" href="{{ url_for('reportes.pdf_sabana', id_seccion=seccion_actual.id, id_periodo=id_periodo, lapso=lapso) }}" class="btn px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
-            Sábana PDF
+            Resumen PDF
           </a>
           {% endif %}
           {% endif %}

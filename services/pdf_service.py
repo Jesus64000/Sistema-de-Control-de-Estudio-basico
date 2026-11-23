@@ -705,7 +705,7 @@ def generar_sabana_secundaria_pdf(
     elementos = _encabezado_membrete(cfg, styles)
     elementos.append(
         Paragraph(
-            f"SÁBANA DE CALIFICACIONES — {_esc(seccion_info['grado_nombre'].upper())} SECCIÓN \"{_esc(seccion_info['nombre'])}\" "
+            f"CUADRO RESUMEN DE CALIFICACIONES — {_esc(seccion_info['grado_nombre'].upper())} SECCIÓN \"{_esc(seccion_info['nombre'])}\" "
             f"({lbl_lap.upper()}) · PERÍODO {_esc(periodo)}",
             st_title,
         )

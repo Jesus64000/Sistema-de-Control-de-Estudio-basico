@@ -13,8 +13,8 @@ Sistema web local (100% offline en interfaz y operación) para la gestión acad�
 - **Prosecución masiva inteligente:** reinscripción asistida por sección con sugerencias individuales (Promovido, Materia Pendiente, Repitiente, Egresado).
 - **Calificaciones y horarios:** carga de notas por lapso con cálculo automático de definitiva MPPE, y horarios semanales inteligentes (auto-docente al elegir materia, ficha de carga, disponibilidad en vivo y **bloqueo estricto** ante choques de sección, docente o aula/salón).
 - **Exportaciones oficiales y respaldo preventivo:**
-  - **PDF:** Certificación de Calificaciones MPPE por período, Certificación Acumulada Multi-Año (rango Desde–Hasta), Lote PDF/ZIP, Constancia de Estudio, Boletín por Lapsos, Sábana Media General, Horarios Semanales y Lista de Asistencia (20 días).
-  - **Excel (`.xlsx`):** Nómina de Estudiantes, Planilla por Materia, Sábana Primaria, Sábana Media General y Lista de Asistencia.
+  - **PDF:** Certificación de Calificaciones MPPE por período, Certificación Acumulada Multi-Año (rango Desde–Hasta), Lote PDF/ZIP, Constancia de Estudio, Boletín por Lapsos, Cuadro Resumen de Calificaciones (Media General), Horarios Semanales y Lista de Asistencia (20 días).
+  - **Excel (`.xlsx`):** Nómina de Estudiantes, Planilla por Materia, Cuadro Resumen Primaria, Cuadro Resumen Media General y Lista de Asistencia.
   - **Respaldo (`.sql`):** Descarga completa de la base de datos desde Configuración (solo Administrador) con recordatorio preventivo en el Dashboard cuando pasan más de 15 días sin respaldar.
 
 ---
