@@ -336,21 +336,44 @@ def _normalizar_datos_docente(
     correo: str = "",
     direccion: str = "",
     categoria: str = "Media General",
+    did_excluir: int = None,
 ):
-    if not cedula.strip() or not nombres.strip() or not apellidos.strip():
-        raise ValueError("Cedula, nombres y apellidos del docente son obligatorios.")
+    from services.estudiante_service import (
+        normalizar_y_validar_cedula,
+        validar_correo_opcional,
+        validar_direccion_opcional,
+        validar_telefono_ve,
+        validar_texto_persona,
+    )
+
+    ced = normalizar_y_validar_cedula(cedula, "Cédula del docente")
+    nom = validar_texto_persona(nombres, "Nombres del docente")
+    ape = validar_texto_persona(apellidos, "Apellidos del docente")
+    tel = validar_telefono_ve(telefono, "Teléfono del docente", obligatorio=False)
+    cor = validar_correo_opcional(correo)
+    dir_limpia = validar_direccion_opcional(direccion, "Dirección del docente")
+    esp = " ".join((especialidad or "").split())
+    if len(esp) > 100:
+        raise ValueError("La especialidad no debe superar 100 caracteres.")
     if categoria not in ("Primaria", "Media General", "Especialista"):
         categoria = "Media General"
-    return (
-        cedula.strip().upper(),
-        nombres.strip(),
-        apellidos.strip(),
-        telefono.strip(),
-        correo.strip(),
-        direccion.strip(),
-        especialidad.strip(),
-        categoria,
-    )
+
+    if did_excluir:
+        dup = ejecutar_consulta(
+            "SELECT id FROM docentes WHERE cedula = %s AND id <> %s LIMIT 1",
+            (ced, did_excluir),
+            uno=True,
+        )
+    else:
+        dup = ejecutar_consulta(
+            "SELECT id FROM docentes WHERE cedula = %s LIMIT 1",
+            (ced,),
+            uno=True,
+        )
+    if dup:
+        raise ValueError(f"Ya existe un docente registrado con la cédula {ced}.")
+
+    return (ced, nom, ape, tel, cor, dir_limpia, esp, categoria)
 
 
 def crear_docente(
@@ -385,7 +408,7 @@ def actualizar_docente(
     categoria: str = "Media General",
 ):
     datos = _normalizar_datos_docente(
-        cedula, nombres, apellidos, telefono, especialidad, correo, direccion, categoria
+        cedula, nombres, apellidos, telefono, especialidad, correo, direccion, categoria, did_excluir=did
     )
     return ejecutar_accion(
         "UPDATE docentes SET cedula = %s, nombres = %s, apellidos = %s, telefono = %s, "
@@ -398,6 +421,12 @@ def obtener_resumen_docente(id_periodo: int, id_docente: int):
     docente = ejecutar_consulta("SELECT * FROM docentes WHERE id = %s", (id_docente,), uno=True)
     if not docente:
         return None
+    usuario = ejecutar_consulta(
+        "SELECT id, username, rol, activo, debe_cambiar_password "
+        "FROM usuarios WHERE id_docente = %s ORDER BY activo DESC, id ASC LIMIT 1",
+        (id_docente,),
+        uno=True,
+    )
     guias = ejecutar_consulta(
         "SELECT s.id, s.nombre AS seccion, s.turno, g.nombre AS grado, n.nombre AS nivel, n.tipo_escala "
         "FROM secciones s "
@@ -416,7 +445,7 @@ def obtener_resumen_docente(id_periodo: int, id_docente: int):
         "ORDER BY g.orden ASC, s.nombre ASC, m.nombre ASC",
         (id_periodo, id_docente),
     )
-    return {"docente": docente, "guias": guias, "asignaciones": asignaciones}
+    return {"docente": docente, "usuario": usuario, "guias": guias, "asignaciones": asignaciones}
 
 
 def listar_secciones_docente(id_periodo: int, id_docente: int):

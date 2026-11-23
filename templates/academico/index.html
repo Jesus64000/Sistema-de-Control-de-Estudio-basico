@@ -198,6 +198,11 @@
               <td style="white-space:nowrap" class="px-4 py-2.5 text-right space-x-1">
                 <button
                   type="button"
+                  onclick="abrirModalVerDocente({{ d.id }})"
+                  class="px-2.5 py-1 rounded bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200 border border-blue-200 dark:border-blue-800 text-xs font-semibold"
+                >Ver</button>
+                <button
+                  type="button"
                   onclick="abrirModalDocente(this)"
                   data-id="{{ d.id }}"
                   data-cedula="{{ d.cedula }}"
@@ -210,26 +215,13 @@
                   data-direccion="{{ d.direccion or '' }}"
                   class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
                 >Editar</button>
-                {% if not d.tiene_usuario and d.activo %}
-                <button
-                  type="button"
-                  onclick="abrirModalAccesoDocente(this)"
-                  data-id="{{ d.id }}"
-                  data-cedula="{{ d.cedula }}"
-                  data-nombres="{{ d.nombres }}"
-                  data-apellidos="{{ d.apellidos }}"
-                  data-correo="{{ d.correo or '' }}"
-                  class="px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold"
-                >Crear Acceso</button>
-                {% endif %}
                 {% if not solo_lectura %}
                 <button
                   type="button"
                   onclick="abrirModalMateriasDocente({{ d.id }})"
-                  class="px-2.5 py-1 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold"
+                  class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
                 >Materias</button>
                 {% endif %}
-                <a href="{{ url_for('academico.docente_detalle', did=d.id) }}" class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Ver Carga</a>
               </td>
             </tr>
             {% else %}
@@ -494,30 +486,85 @@
   </div>
 </div>
 
-<!-- Modal Crear / Editar Docente -->
+<!-- Modal Crear / Editar Docente (unificado con validacion por campo) -->
 <div id="modal-docente" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full shadow-xl overflow-hidden">
-    <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
-      <div><div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Personal</div><h3 id="titulo-modal-docente" class="text-base font-bold text-white mt-0.5">Registrar Docente</h3></div>
-      <button type="button" onclick="cerrarModal('modal-docente')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
-    </div>
-    <form id="form-modal-docente" method="POST" action="{{ url_for('academico.docente_crear') }}" data-crear-url="{{ url_for('academico.docente_crear') }}" class="form-academico-async">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <div class="p-6 max-h-[72vh] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div><label class="block text-xs font-semibold mb-1">Cédula *</label><input id="doc-cedula" type="text" name="cedula" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Categoría</label><select id="doc-categoria" name="categoria" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"><option value="Media General">Docente Media General</option><option value="Primaria">Docente de Aula Primaria</option><option value="Especialista">Docente Especialista</option></select></div>
-        <div><label class="block text-xs font-semibold mb-1">Apellidos *</label><input id="doc-apellidos" type="text" name="apellidos" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Nombres *</label><input id="doc-nombres" type="text" name="nombres" required class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Teléfono</label><input id="doc-telefono" type="text" name="telefono" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Correo Electrónico</label><input id="doc-correo" type="email" name="correo" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Especialidad</label><input id="doc-especialidad" type="text" name="especialidad" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
-        <div><label class="block text-xs font-semibold mb-1">Dirección</label><input id="doc-direccion" type="text" name="direccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"></div>
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden" style="max-width:36rem;">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Personal Docente</div>
+        <h3 id="titulo-modal-docente" class="text-base font-bold text-white mt-0.5">Registrar Docente</h3>
       </div>
-      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
-        <button type="button" onclick="cerrarModal('modal-docente')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs">Cancelar</button>
-        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Docente</button>
+      <button type="button" onclick="cerrarModal('modal-docente')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <form id="form-modal-docente" method="POST" action="{{ url_for('academico.docente_crear') }}" data-crear-url="{{ url_for('academico.docente_crear') }}" class="form-academico-async" novalidate>
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div class="p-6 max-h-[72vh] overflow-y-auto space-y-4">
+        <div>
+          <div class="text-xs uppercase tracking-wider font-bold text-blue-700 dark:text-blue-400 mb-2">1. Identificación y Perfil Académico</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="doc-cedula" class="block text-xs font-semibold mb-1">Cédula *</label>
+              <input id="doc-cedula" type="text" name="cedula" required placeholder="Ej. V-14250110" onblur="validarCampoDocente('doc-cedula')" oninput="validarCampoDocente('doc-cedula', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              <p id="err-doc-cedula" class="wiz-err hidden"></p>
+            </div>
+            <div>
+              <label for="doc-categoria" class="block text-xs font-semibold mb-1">Categoría *</label>
+              <select id="doc-categoria" name="categoria" onchange="actualizarPlaceholderEspecialidadDoc()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+                <option value="Media General">Docente Media General</option>
+                <option value="Primaria">Docente de Aula Primaria</option>
+                <option value="Especialista">Docente Especialista</option>
+              </select>
+            </div>
+            <div>
+              <label for="doc-nombres" class="block text-xs font-semibold mb-1">Nombres *</label>
+              <input id="doc-nombres" type="text" name="nombres" required placeholder="Ej. Ana Karina" onblur="validarCampoDocente('doc-nombres')" oninput="validarCampoDocente('doc-nombres', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-doc-nombres" class="wiz-err hidden"></p>
+            </div>
+            <div>
+              <label for="doc-apellidos" class="block text-xs font-semibold mb-1">Apellidos *</label>
+              <input id="doc-apellidos" type="text" name="apellidos" required placeholder="Ej. Rivas Delgado" onblur="validarCampoDocente('doc-apellidos')" oninput="validarCampoDocente('doc-apellidos', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-doc-apellidos" class="wiz-err hidden"></p>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="doc-especialidad" class="block text-xs font-semibold mb-1">Especialidad / Mención</label>
+              <input id="doc-especialidad" type="text" name="especialidad" maxlength="100" placeholder="Ej. Matemáticas / Física / Educación Integral" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200 dark:border-slate-800">
+          <div class="text-xs uppercase tracking-wider font-bold text-blue-700 dark:text-blue-400 mb-2">2. Contacto y Ubicación</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="doc-telefono" class="block text-xs font-semibold mb-1">Teléfono</label>
+              <input id="doc-telefono" type="text" name="telefono" placeholder="Ej. 0414-6201101" onblur="validarCampoDocente('doc-telefono')" oninput="validarCampoDocente('doc-telefono', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+              <p id="err-doc-telefono" class="wiz-err hidden"></p>
+            </div>
+            <div>
+              <label for="doc-correo" class="block text-xs font-semibold mb-1">Correo Electrónico</label>
+              <input id="doc-correo" type="email" name="correo" placeholder="Ej. docente@loslaureles.edu.ve" onblur="validarCampoDocente('doc-correo')" oninput="validarCampoDocente('doc-correo', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-doc-correo" class="wiz-err hidden"></p>
+            </div>
+            <div class="sm:col-span-2">
+              <label for="doc-direccion" class="block text-xs font-semibold mb-1">Dirección de Habitación</label>
+              <input id="doc-direccion" type="text" name="direccion" maxlength="200" placeholder="Ej. Urb. Los Laureles, sector 4, calle 10" onblur="validarCampoDocente('doc-direccion')" oninput="validarCampoDocente('doc-direccion', true)" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              <p id="err-doc-direccion" class="wiz-err hidden"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+        <span class="text-xs opacity-70">* Campos obligatorios</span>
+        <div class="flex gap-2">
+          <button type="button" onclick="cerrarModal('modal-docente')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+          <button type="submit" id="btn-guardar-docente" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Docente</button>
+        </div>
       </div>
     </form>
+  </div>
+</div>
   </div>
 </div>
 
@@ -687,12 +734,110 @@
     abrirModal('modal-cambiar-guia');
   }
 
+  function _setErrDocente(id, msg, enVivo) {
+    const inp = document.getElementById(id);
+    const err = document.getElementById('err-' + id);
+    if (!inp || !err) return true;
+    if (msg) {
+      if (!enVivo || inp.dataset.tocado === '1') {
+        err.textContent = msg;
+        err.classList.remove('hidden');
+        inp.classList.add('is-invalid');
+        inp.classList.remove('is-valid');
+      }
+      return false;
+    }
+    err.textContent = '';
+    err.classList.add('hidden');
+    inp.classList.remove('is-invalid');
+    if (inp.value.trim()) inp.classList.add('is-valid');
+    else inp.classList.remove('is-valid');
+    return true;
+  }
+
+  function validarCampoDocente(id, enVivo) {
+    const inp = document.getElementById(id);
+    if (!inp) return true;
+    if (!enVivo) inp.dataset.tocado = '1';
+    let val = inp.value.trim();
+
+    if (id === 'doc-cedula') {
+      if (!val) return _setErrDocente(id, 'La cédula es obligatoria.', enVivo);
+      const norm = val.toUpperCase().replace(/\s+/g, '');
+      const m = norm.match(/^([VE])?-?(\d{6,9})$/);
+      if (!m) return _setErrDocente(id, 'Formato válido: V-14250110 o E-82100111 (6 a 9 dígitos).', enVivo);
+      if (!enVivo) inp.value = (m[1] || 'V') + '-' + m[2];
+      return _setErrDocente(id, '', enVivo);
+    }
+    if (id === 'doc-nombres' || id === 'doc-apellidos') {
+      if (!val) return _setErrDocente(id, 'Este campo es obligatorio.', enVivo);
+      if (val.length < 2) return _setErrDocente(id, 'Debe tener al menos 2 caracteres.', enVivo);
+      if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñÜü'\-\s]+$/.test(val)) {
+        return _setErrDocente(id, 'Solo se permiten letras y espacios.', enVivo);
+      }
+      return _setErrDocente(id, '', enVivo);
+    }
+    if (id === 'doc-telefono') {
+      if (!val) return _setErrDocente(id, '', enVivo);
+      const dig = val.replace(/\D/g, '');
+      if (!/^0(2|4)\d{9}$/.test(dig)) {
+        return _setErrDocente(id, 'Teléfono venezolano de 11 dígitos (ej. 0414-6201101).', enVivo);
+      }
+      if (!enVivo) inp.value = dig.slice(0, 4) + '-' + dig.slice(4);
+      return _setErrDocente(id, '', enVivo);
+    }
+    if (id === 'doc-correo') {
+      if (!val) return _setErrDocente(id, '', enVivo);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(val)) {
+        return _setErrDocente(id, 'Ingresa un correo electrónico válido.', enVivo);
+      }
+      return _setErrDocente(id, '', enVivo);
+    }
+    if (id === 'doc-direccion') {
+      if (!val) return _setErrDocente(id, '', enVivo);
+      if (val.length < 5) return _setErrDocente(id, 'Si se indica, debe tener al menos 5 caracteres.', enVivo);
+      return _setErrDocente(id, '', enVivo);
+    }
+    return true;
+  }
+
+  function validarFormularioDocente() {
+    const campos = ['doc-cedula', 'doc-nombres', 'doc-apellidos', 'doc-telefono', 'doc-correo', 'doc-direccion'];
+    let ok = true;
+    campos.forEach(c => { if (!validarCampoDocente(c, false)) ok = false; });
+    return ok;
+  }
+
+  function actualizarPlaceholderEspecialidadDoc() {
+    const cat = document.getElementById('doc-categoria').value;
+    const esp = document.getElementById('doc-especialidad');
+    if (!esp) return;
+    if (cat === 'Primaria') esp.placeholder = 'Ej. Educación Integral (Primaria)';
+    else if (cat === 'Especialista') esp.placeholder = 'Ej. Educación Física / Inglés / Música';
+    else esp.placeholder = 'Ej. Matemáticas / Física y Química / Castellano';
+  }
+
+  function _limpiarValidacionDocente() {
+    ['doc-cedula', 'doc-nombres', 'doc-apellidos', 'doc-telefono', 'doc-correo', 'doc-direccion'].forEach(id => {
+      const inp = document.getElementById(id);
+      const err = document.getElementById('err-' + id);
+      if (inp) {
+        inp.classList.remove('is-invalid', 'is-valid');
+        delete inp.dataset.tocado;
+      }
+      if (err) { err.textContent = ''; err.classList.add('hidden'); }
+    });
+  }
+
   function abrirModalDocente(btn) {
     const form = document.getElementById('form-modal-docente');
     const titulo = document.getElementById('titulo-modal-docente');
+    const btnGuardar = document.getElementById('btn-guardar-docente');
+    _limpiarValidacionDocente();
     if (btn && btn.dataset && btn.dataset.id) {
       form.action = '/academico/docentes/editar/' + btn.dataset.id;
       titulo.textContent = 'Editar Docente';
+      if (btnGuardar) btnGuardar.textContent = 'Actualizar Docente';
       document.getElementById('doc-cedula').value = btn.dataset.cedula || '';
       document.getElementById('doc-nombres').value = btn.dataset.nombres || '';
       document.getElementById('doc-apellidos').value = btn.dataset.apellidos || '';
@@ -704,8 +849,10 @@
     } else {
       form.action = form.dataset.crearUrl;
       titulo.textContent = 'Registrar Docente';
+      if (btnGuardar) btnGuardar.textContent = 'Guardar Docente';
       form.reset();
     }
+    actualizarPlaceholderEspecialidadDoc();
     abrirModal('modal-docente');
   }
 
@@ -815,6 +962,10 @@
     const form = e.target;
     if (!form.classList || !form.classList.contains('form-academico-async')) return;
     e.preventDefault();
+    if (form.id === 'form-modal-docente' && !validarFormularioDocente()) {
+      mostrarToastAcademico('Revisa los campos marcados en rojo antes de guardar.', 'error');
+      return;
+    }
     if (form.dataset.confirm && !(await pedirConfirmacion(form.dataset.confirm))) return;
 
     try {
@@ -978,6 +1129,28 @@
   </div>
 </div>
 
+<!-- Modal Ver Informacion Completa del Docente -->
+<div id="modal-ver-docente" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden" style="max-width:48rem;">
+    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div id="ver-doc-subtitulo" class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Ficha del Docente</div>
+        <h3 id="ver-doc-titulo" class="text-base font-bold text-white mt-0.5 truncate">Cargando...</h3>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-ver-docente')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="ver-doc-contenido" class="p-6 max-h-[75vh] overflow-y-auto space-y-4 text-xs">
+      <p class="py-6 text-center opacity-75">Consultando información del docente...</p>
+    </div>
+    <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <div id="ver-doc-footer-acciones" class="flex flex-wrap items-center gap-2"></div>
+      <button type="button" onclick="cerrarModal('modal-ver-docente')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Crear Acceso Rapido para Docente -->
 <div id="modal-crear-acceso-docente" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full shadow-xl overflow-hidden">
@@ -1028,8 +1201,7 @@
   function _limpiarTextoUser(txt) {
     return String(txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
   }
-  function abrirModalAccesoDocente(btn) {
-    const d = btn.dataset;
+  function abrirModalAccesoDocente(d) {
     const primerNom = (d.nombres || '').trim().split(/\s+/)[0] || '';
     const primerApe = (d.apellidos || '').trim().split(/\s+/)[0] || '';
     const userSug = (_limpiarTextoUser(primerNom).slice(0, 1) + _limpiarTextoUser(primerApe)) || _limpiarTextoUser(d.cedula);
@@ -1041,7 +1213,124 @@
     document.getElementById('acc-doc-username').value = userSug;
     document.getElementById('acc-doc-password').value = claveSug;
     document.getElementById('acc-doc-correo').value = d.correo || '';
+    cerrarModal('modal-ver-docente');
     abrirModal('modal-crear-acceso-docente');
+  }
+
+  async function abrirModalVerDocente(did) {
+    const tit = document.getElementById('ver-doc-titulo');
+    const sub = document.getElementById('ver-doc-subtitulo');
+    const cont = document.getElementById('ver-doc-contenido');
+    const foot = document.getElementById('ver-doc-footer-acciones');
+    if (!cont) return;
+    tit.textContent = 'Cargando...';
+    sub.textContent = 'Ficha del Docente';
+    cont.innerHTML = '<p class="py-6 text-center opacity-75">Consultando información completa del docente...</p>';
+    if (foot) foot.innerHTML = '';
+    abrirModal('modal-ver-docente');
+
+    try {
+      const res = await fetch('/academico/api/docentes/' + did + '/ficha');
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        cont.innerHTML = `<p class="py-6 text-center text-red-700 dark:text-red-400">${_escAcad(data.mensaje || 'No se pudo cargar la ficha.')}</p>`;
+        return;
+      }
+      const d = data.docente;
+      const usr = data.usuario;
+      const guias = data.guias || [];
+      const asigs = data.asignaciones || [];
+      const horario = data.horario || [];
+
+      tit.textContent = `${d.apellidos} ${d.nombres}`;
+      sub.textContent = `Ficha del Docente · Período ${data.periodo_nombre}`;
+
+      const badgeEstado = d.activo
+        ? '<span class="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-semibold">Activo</span>'
+        : '<span class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 font-semibold">Inactivo</span>';
+
+      const bloqueAcceso = usr && usr.activo
+        ? `<div class="px-3.5 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 flex flex-wrap items-center justify-between gap-2">
+             <div>
+               <span class="font-bold text-emerald-800 dark:text-emerald-300">Cuenta de acceso activa:</span>
+               <span class="font-semibold">@${_escAcad(usr.username)}</span>
+               <span class="opacity-75">${usr.debe_cambiar_password ? ' · Clave temporal pendiente' : ' · Clave verificada'}</span>
+             </div>
+             <a href="/usuarios/" class="px-2.5 py-1 rounded border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 font-semibold">Gestionar en Usuarios</a>
+           </div>`
+        : `<div class="px-3.5 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2">
+             <div>
+               <span class="font-bold">Sin usuario de acceso al sistema.</span>
+               <span class="opacity-75"> Habilita su cuenta para que pueda cargar notas y ver su horario.</span>
+             </div>
+             ${d.activo ? `<button type="button" id="btn-gen-acceso-modal" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Generar Acceso</button>` : ''}
+           </div>`;
+
+      const htmlGuias = guias.length
+        ? '<div class="flex flex-wrap gap-1.5">' + guias.map(g =>
+            `<span class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">${_escAcad(g.grado)} "${_escAcad(g.seccion)}" (${_escAcad(g.turno)})</span>`
+          ).join('') + '</div>'
+        : '<p class="opacity-70">No es titular ni profesor guía en este período.</p>';
+
+      const htmlAsigs = asigs.length
+        ? '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' + asigs.map(a =>
+            `<div class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+               <span class="font-semibold">${_escAcad(a.materia)}</span>
+               <span class="opacity-75">${_escAcad(a.grado)} "${_escAcad(a.seccion)}"</span>
+             </div>`
+          ).join('') + '</div>'
+        : '<p class="opacity-70">Sin materias asignadas en este período.</p>';
+
+      const htmlHorario = '<div class="grid grid-cols-1 sm:grid-cols-5 gap-2">' + horario.map(dia => `
+        <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+          <div class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 font-bold text-center border-b border-slate-200 dark:border-slate-700">${_escAcad(dia.dia)}</div>
+          <div class="p-2 space-y-1.5">
+            ${dia.bloques.length ? dia.bloques.map(b => `
+              <div class="p-1.5 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800">
+                <div class="font-bold tabular-nums text-blue-800 dark:text-blue-200">${_escAcad(b.hi)} - ${_escAcad(b.hf)}</div>
+                <div class="font-semibold">${_escAcad(b.materia)}</div>
+                <div class="opacity-75">${_escAcad(b.grado)} "${_escAcad(b.seccion)}"${b.aula ? ' · ' + _escAcad(b.aula) : ''}</div>
+              </div>
+            `).join('') : '<div class="py-3 text-center opacity-50">Libre</div>'}
+          </div>
+        </div>
+      `).join('') + '</div>';
+
+      cont.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+          <div><span class="opacity-70">Cédula:</span> <b class="tabular-nums">${_escAcad(d.cedula)}</b> · ${badgeEstado}</div>
+          <div><span class="opacity-70">Categoría:</span> <b>${_escAcad(d.categoria)}</b>${d.especialidad ? ' · ' + _escAcad(d.especialidad) : ''}</div>
+          <div><span class="opacity-70">Teléfono:</span> <b class="tabular-nums">${_escAcad(d.telefono || 'No registrado')}</b></div>
+          <div><span class="opacity-70">Correo:</span> <b>${_escAcad(d.correo || 'No registrado')}</b></div>
+          <div class="sm:col-span-2"><span class="opacity-70">Dirección:</span> <b>${_escAcad(d.direccion || 'No registrada')}</b></div>
+        </div>
+        ${bloqueAcceso}
+        <div>
+          <div class="font-bold text-black dark:text-white mb-1.5">Secciones Guía / Titular (${guias.length})</div>
+          ${htmlGuias}
+        </div>
+        <div>
+          <div class="font-bold text-black dark:text-white mb-1.5">Materias y Secciones Asignadas (${asigs.length})</div>
+          ${htmlAsigs}
+        </div>
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-1.5">
+            <span class="font-bold text-black dark:text-white">Horario Semanal</span>
+            <span class="tabular-nums px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">${data.total_bloques} bloques (${data.horas_semana} h/sem)</span>
+          </div>
+          ${htmlHorario}
+        </div>
+      `;
+
+      const btnAcc = document.getElementById('btn-gen-acceso-modal');
+      if (btnAcc) btnAcc.onclick = () => abrirModalAccesoDocente(d);
+
+      if (foot) {
+        foot.innerHTML = `<a href="/academico/docentes/${d.id}" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800">Abrir en página completa</a>`;
+      }
+    } catch (_) {
+      cont.innerHTML = '<p class="py-6 text-center text-red-700 dark:text-red-400">Error de conexión al consultar la ficha del docente.</p>';
+    }
   }
 </script>
 

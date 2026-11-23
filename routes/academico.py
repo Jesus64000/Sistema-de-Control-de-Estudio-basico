@@ -261,6 +261,56 @@ def docente_toggle(did: int):
     return _respuesta_academico(True, "Estado del docente actualizado.")
 
 
+@academico_bp.route("/api/docentes/<int:did>/ficha", methods=["GET"])
+@admin_required
+def api_docente_ficha(did: int):
+    periodo_sel, periodo_activo, _, _ = resolver_periodo_consulta(
+        request.args.get("id_periodo", type=int),
+        session.get("periodo_consulta_id"),
+    )
+    periodo_ref = periodo_sel or periodo_activo
+    pid = periodo_ref["id"] if periodo_ref else 0
+    resumen = obtener_resumen_docente(pid, did)
+    if not resumen:
+        return jsonify({"ok": False, "mensaje": "Docente no encontrado."}), 404
+    horario_raw = obtener_horario_docente(pid, did) if pid else []
+    bloques_dia = []
+    minutos_total = 0
+    for dnum, dnom in DIAS_SEMANA.items():
+        items = []
+        for b in horario_raw:
+            if b["dia_semana"] == dnum:
+                hi_str = str(b["hora_inicio"])[:5]
+                hf_str = str(b["hora_fin"])[:5]
+                try:
+                    h1, m1 = map(int, hi_str.split(":"))
+                    h2, m2 = map(int, hf_str.split(":"))
+                    minutos_total += max(0, (h2 * 60 + m2) - (h1 * 60 + m1))
+                except Exception:
+                    pass
+                items.append({
+                    "hi": hi_str,
+                    "hf": hf_str,
+                    "grado": b["grado_nombre"],
+                    "seccion": b["seccion_nombre"],
+                    "materia": b.get("materia_nombre") or b.get("descripcion_bloque") or "Bloque",
+                    "aula": b.get("aula") or "",
+                })
+        bloques_dia.append({"dia": dnom, "bloques": items})
+
+    return jsonify({
+        "ok": True,
+        "periodo_nombre": periodo_ref["nombre"] if periodo_ref else "Sin período",
+        "docente": resumen["docente"],
+        "usuario": resumen.get("usuario"),
+        "guias": resumen["guias"],
+        "asignaciones": resumen["asignaciones"],
+        "horario": bloques_dia,
+        "total_bloques": len(horario_raw),
+        "horas_semana": round(minutos_total / 60.0, 1),
+    })
+
+
 @academico_bp.route("/api/docentes/<int:did>/carga", methods=["GET"])
 @admin_required
 def api_docente_carga(did: int):
