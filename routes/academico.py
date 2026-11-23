@@ -15,6 +15,7 @@ from services.academico_service import (
     crear_materia,
     crear_periodo,
     crear_seccion,
+    eliminar_o_inactivar_docente,
     guardar_asignaciones_docente_lote,
     listar_asignaciones_seccion,
     listar_bloques,
@@ -261,10 +262,20 @@ def docente_toggle(did: int):
     return _respuesta_academico(True, "Estado del docente actualizado.")
 
 
+@academico_bp.route("/docentes/eliminar/<int:did>", methods=["POST"])
+@admin_required
+def docente_eliminar(did: int):
+    try:
+        res = eliminar_o_inactivar_docente(did)
+        return _respuesta_academico(True, res["mensaje"])
+    except Exception as err:
+        return _respuesta_academico(False, str(err))
+
+
 @academico_bp.route("/api/docentes/<int:did>/ficha", methods=["GET"])
 @admin_required
 def api_docente_ficha(did: int):
-    periodo_sel, periodo_activo, _, _ = resolver_periodo_consulta(
+    periodo_sel, periodo_activo, _, solo_lectura = resolver_periodo_consulta(
         request.args.get("id_periodo", type=int),
         session.get("periodo_consulta_id"),
     )
@@ -298,13 +309,22 @@ def api_docente_ficha(did: int):
                 })
         bloques_dia.append({"dia": dnom, "bloques": items})
 
+    carga_editable = (
+        obtener_carga_editable_docente(pid, did)
+        if pid and not solo_lectura
+        else {"secciones": []}
+    )
+
     return jsonify({
         "ok": True,
+        "id_periodo": pid,
         "periodo_nombre": periodo_ref["nombre"] if periodo_ref else "Sin período",
+        "solo_lectura": solo_lectura,
         "docente": resumen["docente"],
         "usuario": resumen.get("usuario"),
         "guias": resumen["guias"],
         "asignaciones": resumen["asignaciones"],
+        "secciones_carga": (carga_editable or {}).get("secciones", []),
         "horario": bloques_dia,
         "total_bloques": len(horario_raw),
         "horas_semana": round(minutos_total / 60.0, 1),

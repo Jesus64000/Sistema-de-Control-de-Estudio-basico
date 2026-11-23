@@ -215,13 +215,6 @@
                   data-direccion="{{ d.direccion or '' }}"
                   class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
                 >Editar</button>
-                {% if not solo_lectura %}
-                <button
-                  type="button"
-                  onclick="abrirModalMateriasDocente({{ d.id }})"
-                  class="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 text-xs font-medium hover:bg-slate-100 dark:hover:bg-slate-800"
-                >Materias</button>
-                {% endif %}
               </td>
             </tr>
             {% else %}
@@ -555,16 +548,20 @@
           </div>
         </div>
       </div>
-      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-        <span class="text-xs opacity-70">* Campos obligatorios</span>
+      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <button type="button" id="btn-eliminar-docente" onclick="eliminarDocenteDesdeModal()" class="hidden px-3 py-2 rounded-lg border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-xs font-semibold hover:bg-red-100">Eliminar</button>
+          <span id="doc-hint-obligatorios" class="text-xs opacity-70">* Campos obligatorios</span>
+        </div>
         <div class="flex gap-2">
           <button type="button" onclick="cerrarModal('modal-docente')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
           <button type="submit" id="btn-guardar-docente" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Docente</button>
         </div>
       </div>
     </form>
-  </div>
-</div>
+    <form id="form-eliminar-docente" method="POST" class="hidden">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+    </form>
   </div>
 </div>
 
@@ -829,15 +826,22 @@
     });
   }
 
+  let _docenteEditId = null;
+  let _docenteEditNombre = '';
+
   function abrirModalDocente(btn) {
     const form = document.getElementById('form-modal-docente');
     const titulo = document.getElementById('titulo-modal-docente');
     const btnGuardar = document.getElementById('btn-guardar-docente');
+    const btnEliminar = document.getElementById('btn-eliminar-docente');
     _limpiarValidacionDocente();
     if (btn && btn.dataset && btn.dataset.id) {
+      _docenteEditId = btn.dataset.id;
+      _docenteEditNombre = ((btn.dataset.apellidos || '') + ' ' + (btn.dataset.nombres || '')).trim();
       form.action = '/academico/docentes/editar/' + btn.dataset.id;
       titulo.textContent = 'Editar Docente';
       if (btnGuardar) btnGuardar.textContent = 'Actualizar Docente';
+      if (btnEliminar) btnEliminar.classList.remove('hidden');
       document.getElementById('doc-cedula').value = btn.dataset.cedula || '';
       document.getElementById('doc-nombres').value = btn.dataset.nombres || '';
       document.getElementById('doc-apellidos').value = btn.dataset.apellidos || '';
@@ -847,13 +851,44 @@
       document.getElementById('doc-especialidad').value = btn.dataset.especialidad || '';
       document.getElementById('doc-direccion').value = btn.dataset.direccion || '';
     } else {
+      _docenteEditId = null;
+      _docenteEditNombre = '';
       form.action = form.dataset.crearUrl;
       titulo.textContent = 'Registrar Docente';
       if (btnGuardar) btnGuardar.textContent = 'Guardar Docente';
+      if (btnEliminar) btnEliminar.classList.add('hidden');
       form.reset();
     }
     actualizarPlaceholderEspecialidadDoc();
     abrirModal('modal-docente');
+  }
+
+  async function eliminarDocenteDesdeModal() {
+    if (!_docenteEditId) return;
+    const ok = await pedirConfirmacion(
+      `¿Eliminar al docente ${_docenteEditNombre}? Si ya posee horarios o materias asignadas en algún período, se inactivará de forma segura para conservar su historial.`,
+      { titulo: 'Eliminar Docente', confirmarTexto: 'Sí, continuar' }
+    );
+    if (!ok) return;
+    const fDel = document.getElementById('form-eliminar-docente');
+    if (!fDel) return;
+    try {
+      const resp = await fetch('/academico/docentes/eliminar/' + _docenteEditId, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch' },
+        body: new FormData(fDel)
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        mostrarToastAcademico(data.mensaje || 'No se pudo procesar la eliminación.', 'error');
+        return;
+      }
+      cerrarModal('modal-docente');
+      mostrarToastAcademico(data.mensaje || 'Docente actualizado.', 'ok');
+      await recargarLayoutAcademico();
+    } catch (_) {
+      mostrarToastAcademico('Error de conexión al eliminar.', 'error');
+    }
   }
 
   function abrirModalMateria(btn) {
@@ -1129,9 +1164,9 @@
   </div>
 </div>
 
-<!-- Modal Ver Informacion Completa del Docente -->
+<!-- Modal Ver Informacion Completa del Docente (3 Pestanas: Informacion, Materias, Horario) -->
 <div id="modal-ver-docente" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden" style="max-width:48rem;">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full shadow-xl overflow-hidden" style="max-width:50rem;">
     <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between gap-3">
       <div class="min-w-0">
         <div id="ver-doc-subtitulo" class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Ficha del Docente</div>
@@ -1141,9 +1176,18 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
-    <div id="ver-doc-contenido" class="p-6 max-h-[75vh] overflow-y-auto space-y-4 text-xs">
+
+    <!-- Barra de 3 Pestanas -->
+    <div class="px-6 pt-2.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 text-xs">
+      <button type="button" id="ver-doc-tab-btn-info" onclick="cambiarTabVerDocente('info')" class="px-3 py-2 font-semibold border-b-2 border-blue-700 text-blue-700 dark:text-blue-400">Información</button>
+      <button type="button" id="ver-doc-tab-btn-materias" onclick="cambiarTabVerDocente('materias')" class="px-3 py-2 font-semibold border-b-2 border-transparent opacity-75 hover:opacity-100">Materias <span id="ver-doc-badge-mat" class="tabular-nums opacity-80"></span></button>
+      <button type="button" id="ver-doc-tab-btn-horario" onclick="cambiarTabVerDocente('horario')" class="px-3 py-2 font-semibold border-b-2 border-transparent opacity-75 hover:opacity-100">Horario <span id="ver-doc-badge-hor" class="tabular-nums opacity-80"></span></button>
+    </div>
+
+    <div id="ver-doc-contenido" class="p-6 max-h-[72vh] overflow-y-auto text-xs">
       <p class="py-6 text-center opacity-75">Consultando información del docente...</p>
     </div>
+
     <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
       <div id="ver-doc-footer-acciones" class="flex flex-wrap items-center gap-2"></div>
       <button type="button" onclick="cerrarModal('modal-ver-docente')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cerrar</button>
@@ -1217,16 +1261,57 @@
     abrirModal('modal-crear-acceso-docente');
   }
 
-  async function abrirModalVerDocente(did) {
+  function cambiarTabVerDocente(tab) {
+    ['info', 'materias', 'horario'].forEach(t => {
+      const panel = document.getElementById('ver-doc-panel-' + t);
+      const btn = document.getElementById('ver-doc-tab-btn-' + t);
+      if (panel) panel.classList.toggle('hidden', t !== tab);
+      if (btn) {
+        btn.classList.toggle('border-blue-700', t === tab);
+        btn.classList.toggle('text-blue-700', t === tab);
+        btn.classList.toggle('dark:text-blue-400', t === tab);
+        btn.classList.toggle('border-transparent', t !== tab);
+        btn.classList.toggle('opacity-75', t !== tab);
+      }
+    });
+  }
+
+  function filtrarMateriasVerDoc() {
+    const q = ((document.getElementById('ver-doc-mat-filtro') || {}).value || '').trim().toLowerCase();
+    document.querySelectorAll('#ver-doc-panel-materias .doc-mat-sec').forEach(secEl => {
+      let visibles = 0;
+      secEl.querySelectorAll('.doc-mat-item').forEach(it => {
+        const ok = !q || it.dataset.search.includes(q);
+        it.classList.toggle('hidden', !ok);
+        if (ok) visibles++;
+      });
+      secEl.classList.toggle('hidden', visibles === 0);
+    });
+  }
+
+  function actualizarContadorVerDocMat() {
+    const n = document.querySelectorAll('#ver-doc-panel-materias input[name="asig_par"]:checked').length;
+    const el = document.getElementById('ver-doc-mat-contador');
+    const bdg = document.getElementById('ver-doc-badge-mat');
+    if (el) el.textContent = n + (n === 1 ? ' materia asignada' : ' materias asignadas');
+    if (bdg) bdg.textContent = `(${n})`;
+  }
+
+  async function abrirModalVerDocente(did, tabInicial) {
     const tit = document.getElementById('ver-doc-titulo');
     const sub = document.getElementById('ver-doc-subtitulo');
     const cont = document.getElementById('ver-doc-contenido');
     const foot = document.getElementById('ver-doc-footer-acciones');
+    const bdgMat = document.getElementById('ver-doc-badge-mat');
+    const bdgHor = document.getElementById('ver-doc-badge-hor');
     if (!cont) return;
     tit.textContent = 'Cargando...';
     sub.textContent = 'Ficha del Docente';
+    if (bdgMat) bdgMat.textContent = '';
+    if (bdgHor) bdgHor.textContent = '';
     cont.innerHTML = '<p class="py-6 text-center opacity-75">Consultando información completa del docente...</p>';
     if (foot) foot.innerHTML = '';
+    cambiarTabVerDocente(tabInicial || 'info');
     abrirModal('modal-ver-docente');
 
     try {
@@ -1240,10 +1325,14 @@
       const usr = data.usuario;
       const guias = data.guias || [];
       const asigs = data.asignaciones || [];
+      const secsCarga = data.secciones_carga || [];
       const horario = data.horario || [];
+      const soloLect = !!data.solo_lectura;
 
       tit.textContent = `${d.apellidos} ${d.nombres}`;
       sub.textContent = `Ficha del Docente · Período ${data.periodo_nombre}`;
+      if (bdgMat) bdgMat.textContent = `(${asigs.length})`;
+      if (bdgHor) bdgHor.textContent = `(${data.total_bloques})`;
 
       const badgeEstado = d.activo
         ? '<span class="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 font-semibold">Activo</span>'
@@ -1272,55 +1361,100 @@
           ).join('') + '</div>'
         : '<p class="opacity-70">No es titular ni profesor guía en este período.</p>';
 
-      const htmlAsigs = asigs.length
-        ? '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' + asigs.map(a =>
-            `<div class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-               <span class="font-semibold">${_escAcad(a.materia)}</span>
-               <span class="opacity-75">${_escAcad(a.grado)} "${_escAcad(a.seccion)}"</span>
-             </div>`
-          ).join('') + '</div>'
-        : '<p class="opacity-70">Sin materias asignadas en este período.</p>';
-
-      const htmlHorario = '<div class="grid grid-cols-1 sm:grid-cols-5 gap-2">' + horario.map(dia => `
-        <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-          <div class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 font-bold text-center border-b border-slate-200 dark:border-slate-700">${_escAcad(dia.dia)}</div>
-          <div class="p-2 space-y-1.5">
-            ${dia.bloques.length ? dia.bloques.map(b => `
-              <div class="p-1.5 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800">
-                <div class="font-bold tabular-nums text-blue-800 dark:text-blue-200">${_escAcad(b.hi)} - ${_escAcad(b.hf)}</div>
-                <div class="font-semibold">${_escAcad(b.materia)}</div>
-                <div class="opacity-75">${_escAcad(b.grado)} "${_escAcad(b.seccion)}"${b.aula ? ' · ' + _escAcad(b.aula) : ''}</div>
-              </div>
-            `).join('') : '<div class="py-3 text-center opacity-50">Libre</div>'}
+      const panelInfo = `
+        <div id="ver-doc-panel-info" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+            <div><span class="opacity-70">Cédula:</span> <b class="tabular-nums">${_escAcad(d.cedula)}</b> · ${badgeEstado}</div>
+            <div><span class="opacity-70">Categoría:</span> <b>${_escAcad(d.categoria)}</b>${d.especialidad ? ' · ' + _escAcad(d.especialidad) : ''}</div>
+            <div><span class="opacity-70">Teléfono:</span> <b class="tabular-nums">${_escAcad(d.telefono || 'No registrado')}</b></div>
+            <div><span class="opacity-70">Correo:</span> <b>${_escAcad(d.correo || 'No registrado')}</b></div>
+            <div class="sm:col-span-2"><span class="opacity-70">Dirección:</span> <b>${_escAcad(d.direccion || 'No registrada')}</b></div>
           </div>
-        </div>
-      `).join('') + '</div>';
-
-      cont.innerHTML = `
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
-          <div><span class="opacity-70">Cédula:</span> <b class="tabular-nums">${_escAcad(d.cedula)}</b> · ${badgeEstado}</div>
-          <div><span class="opacity-70">Categoría:</span> <b>${_escAcad(d.categoria)}</b>${d.especialidad ? ' · ' + _escAcad(d.especialidad) : ''}</div>
-          <div><span class="opacity-70">Teléfono:</span> <b class="tabular-nums">${_escAcad(d.telefono || 'No registrado')}</b></div>
-          <div><span class="opacity-70">Correo:</span> <b>${_escAcad(d.correo || 'No registrado')}</b></div>
-          <div class="sm:col-span-2"><span class="opacity-70">Dirección:</span> <b>${_escAcad(d.direccion || 'No registrada')}</b></div>
-        </div>
-        ${bloqueAcceso}
-        <div>
-          <div class="font-bold text-black dark:text-white mb-1.5">Secciones Guía / Titular (${guias.length})</div>
-          ${htmlGuias}
-        </div>
-        <div>
-          <div class="font-bold text-black dark:text-white mb-1.5">Materias y Secciones Asignadas (${asigs.length})</div>
-          ${htmlAsigs}
-        </div>
-        <div>
-          <div class="flex items-center justify-between gap-2 mb-1.5">
-            <span class="font-bold text-black dark:text-white">Horario Semanal</span>
-            <span class="tabular-nums px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">${data.total_bloques} bloques (${data.horas_semana} h/sem)</span>
+          ${bloqueAcceso}
+          <div>
+            <div class="font-bold text-black dark:text-white mb-1.5">Secciones Guía / Titular (${guias.length})</div>
+            ${htmlGuias}
           </div>
-          ${htmlHorario}
         </div>
       `;
+
+      let panelMaterias = '';
+      if (!soloLect && secsCarga.length > 0) {
+        const csrfVal = (document.querySelector('#form-modal-docente input[name="_csrf_token"]') || {}).value || '';
+        panelMaterias = `
+          <div id="ver-doc-panel-materias" class="hidden space-y-3">
+            <form method="POST" action="/academico/docentes/${d.id}/asignaciones" class="form-academico-async space-y-3">
+              <input type="hidden" name="_csrf_token" value="${_escAcad(csrfVal)}">
+              <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <input id="ver-doc-mat-filtro" type="text" oninput="filtrarMateriasVerDoc()" placeholder="Filtrar por materia o año (ej. Matemáticas, 3.º Año)..." class="w-64 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
+                <div class="flex items-center gap-2">
+                  <span id="ver-doc-mat-contador" class="tabular-nums font-semibold text-blue-700 dark:text-blue-400">${asigs.length} materias asignadas</span>
+                  <button type="submit" class="px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold">Guardar Materias</button>
+                </div>
+              </div>
+              <div class="space-y-2.5">
+                ${secsCarga.map(s => `
+                  <div class="doc-mat-sec border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                    <div class="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 font-bold flex items-center justify-between">
+                      <span>${_escAcad(s.label)}</span>
+                      <span class="opacity-70 font-normal">${_escAcad(s.nivel_nombre)}</span>
+                    </div>
+                    <div class="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      ${s.materias.map(m => `
+                        <label class="doc-mat-item flex items-start gap-2 p-2 rounded-lg border ${m.asignada_a_este ? 'border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/60' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40'}" data-search="${_escAcad((s.label + ' ' + m.nombre + ' ' + m.codigo).toLowerCase())}">
+                          <input type="checkbox" name="asig_par" value="${s.id_seccion}:${m.id_materia}" ${m.asignada_a_este ? 'checked' : ''} onchange="actualizarContadorVerDocMat()" class="mt-0.5">
+                          <div class="min-w-0">
+                            <div class="font-semibold text-black dark:text-white">${_escAcad(m.nombre)}${m.codigo ? ' <span class="opacity-70">(' + _escAcad(m.codigo) + ')</span>' : ''}</div>
+                            ${m.otro_docente ? `<div class="opacity-70">Actual: ${_escAcad(m.otro_docente)}</div>` : '<div class="opacity-70">Sin asignar</div>'}
+                          </div>
+                        </label>
+                      `).join('')}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </form>
+          </div>
+        `;
+      } else {
+        const htmlAsigs = asigs.length
+          ? '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' + asigs.map(a =>
+              `<div class="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+                 <span class="font-semibold">${_escAcad(a.materia)}</span>
+                 <span class="opacity-75">${_escAcad(a.grado)} "${_escAcad(a.seccion)}"</span>
+               </div>`
+            ).join('') + '</div>'
+          : '<p class="py-6 text-center opacity-70">Sin materias asignadas en este período.</p>';
+        panelMaterias = `<div id="ver-doc-panel-materias" class="hidden space-y-2">${htmlAsigs}</div>`;
+      }
+
+      const panelHorario = `
+        <div id="ver-doc-panel-horario" class="hidden space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="tabular-nums px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800 font-semibold">${data.total_bloques} bloques (${data.horas_semana} h/sem)</span>
+            <a href="/reportes/horario/docente/${d.id}/pdf?id_periodo=${data.id_periodo}" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Descargar Horario PDF</a>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            ${horario.map(dia => `
+              <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                <div class="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 font-bold text-center border-b border-slate-200 dark:border-slate-700">${_escAcad(dia.dia)}</div>
+                <div class="p-2 space-y-1.5">
+                  ${dia.bloques.length ? dia.bloques.map(b => `
+                    <div class="p-1.5 rounded bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800">
+                      <div class="font-bold tabular-nums text-blue-800 dark:text-blue-200">${_escAcad(b.hi)} - ${_escAcad(b.hf)}</div>
+                      <div class="font-semibold">${_escAcad(b.materia)}</div>
+                      <div class="opacity-75">${_escAcad(b.grado)} "${_escAcad(b.seccion)}"${b.aula ? ' · ' + _escAcad(b.aula) : ''}</div>
+                    </div>
+                  `).join('') : '<div class="py-3 text-center opacity-50">Libre</div>'}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      cont.innerHTML = panelInfo + panelMaterias + panelHorario;
+      cambiarTabVerDocente(tabInicial || 'info');
 
       const btnAcc = document.getElementById('btn-gen-acceso-modal');
       if (btnAcc) btnAcc.onclick = () => abrirModalAccesoDocente(d);
@@ -1333,31 +1467,4 @@
     }
   }
 </script>
-
-<!-- Modal Asignar Materias y Secciones a un Docente -->
-<div id="modal-docente-materias" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-2xl w-full shadow-xl overflow-hidden">
-    <div class="bg-institucional-950 text-white px-6 py-4 flex items-center justify-between gap-3">
-      <div class="min-w-0">
-        <div id="doc-mat-subtitulo" class="text-xs uppercase tracking-wider text-blue-300 font-semibold">Asignación de Materias</div>
-        <h3 id="doc-mat-titulo" class="text-base font-bold text-white mt-0.5 truncate">Docente</h3>
-      </div>
-      <button type="button" onclick="cerrarModal('modal-docente-materias')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-    <form id="form-docente-materias" method="POST" class="form-academico-async">
-      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
-      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-        <input id="doc-mat-filtro" type="text" oninput="filtrarMateriasDocenteModal()" placeholder="Filtrar por materia o año (ej. Matemáticas, 3.º Año)..." class="w-64 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs">
-        <span id="doc-mat-contador" class="tabular-nums text-xs font-semibold text-blue-700 dark:text-blue-400">0 materias asignadas</span>
-      </div>
-      <div id="doc-mat-lista" class="p-6 max-h-[72vh] overflow-y-auto space-y-3"></div>
-      <div class="px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
-        <button type="button" onclick="cerrarModal('modal-docente-materias')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
-        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Guardar Asignaciones</button>
-      </div>
-    </form>
-  </div>
-</div>
 {% endblock %}

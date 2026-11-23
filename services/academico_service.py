@@ -482,6 +482,36 @@ def toggle_docente(did: int):
     ejecutar_accion("UPDATE docentes SET activo = NOT activo WHERE id = %s", (did,))
 
 
+def eliminar_o_inactivar_docente(did: int) -> dict:
+    """Elimina fisicamente al docente si no tiene historial; de lo contrario lo inactiva."""
+    doc = ejecutar_consulta("SELECT id, nombres, apellidos FROM docentes WHERE id = %s LIMIT 1", (did,), uno=True)
+    if not doc:
+        raise ValueError("Docente no encontrado.")
+
+    tiene_asig = ejecutar_consulta(
+        "SELECT 1 FROM asignaciones_docentes WHERE id_docente = %s LIMIT 1", (did,), uno=True
+    )
+    tiene_hor = ejecutar_consulta(
+        "SELECT 1 FROM horarios WHERE id_docente = %s LIMIT 1", (did,), uno=True
+    )
+    if tiene_asig or tiene_hor:
+        ejecutar_accion("UPDATE docentes SET activo = FALSE WHERE id = %s", (did,))
+        ejecutar_accion("UPDATE usuarios SET activo = FALSE WHERE id_docente = %s", (did,))
+        return {
+            "eliminado": False,
+            "mensaje": (
+                f"El docente {doc['apellidos']} {doc['nombres']} tiene historial en horarios o materias; "
+                "se marcó como Inactivo (y su cuenta fue suspendida) para conservar el historial."
+            ),
+        }
+
+    ejecutar_accion("DELETE FROM docentes WHERE id = %s", (did,))
+    return {
+        "eliminado": True,
+        "mensaje": f"Docente {doc['apellidos']} {doc['nombres']} eliminado definitivamente.",
+    }
+
+
 def listar_secciones(id_periodo: int, id_nivel: int = None):
     sql = (
         "SELECT s.*, g.nombre AS grado_nombre, g.orden AS grado_orden, "
