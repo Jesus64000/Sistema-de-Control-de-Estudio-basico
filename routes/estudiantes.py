@@ -8,6 +8,7 @@ from services.academico_service import (
     resolver_periodo_consulta,
 )
 from services.auth_service import roles_required
+from services.import_service import importar_nomina_excel
 from services.estudiante_service import (
     actualizar_estudiante,
     buscar_estudiante_por_cedula,
@@ -226,6 +227,39 @@ def guardar():
     except Exception as err:
         flash(str(err), "error")
     return redirect(url_for(destino))
+
+
+@estudiantes_bp.route("/importar-excel", methods=["POST"])
+@roles_required("admin", "operador")
+def importar_excel():
+    periodo = obtener_periodo_activo()
+    if not periodo:
+        flash("No hay período escolar activo.", "error")
+        return redirect(url_for("estudiantes.index"))
+    archivo = request.files.get("archivo")
+    if not archivo or not archivo.filename.lower().endswith(".xlsx"):
+        flash("Debe seleccionar un archivo Excel (.xlsx) válido.", "error")
+        return redirect(url_for("estudiantes.index"))
+    id_sec = request.form.get("id_seccion", type=int)
+    try:
+        res = importar_nomina_excel(archivo.stream, periodo["id"], id_seccion_fija=id_sec or None)
+        if res["procesados"] == 0:
+            flash("No se encontraron estudiantes válidos para importar en el archivo.", "error")
+        else:
+            flash(
+                f"Importación completada: {res['procesados']} estudiante(s) procesado(s) "
+                f"en {len(res['secciones'])} hoja(s) ({res['sin_cedula']} sin cédula con código SC, "
+                f"{res['omitidos']} omitidos).",
+                "success",
+            )
+        advs = res.get("advertencias") or []
+        if advs:
+            muestra = "; ".join(advs[:4])
+            extra = f" (+{len(advs) - 4} más)" if len(advs) > 4 else ""
+            flash(f"Advertencias de importación: {muestra}{extra}", "error")
+    except Exception as err:
+        flash(f"Error al importar nómina: {err}", "error")
+    return redirect(url_for("estudiantes.index"))
 
 
 @estudiantes_bp.route("/editar/<int:eid>", methods=["POST"])

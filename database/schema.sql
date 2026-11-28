@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS estudiantes (
     apellidos VARCHAR(80) NOT NULL,
     genero ENUM('M', 'F') NOT NULL DEFAULT 'M',
     fecha_nacimiento DATE NULL,
+    lugar_nacimiento VARCHAR(120) NULL,
     direccion VARCHAR(255) NULL,
     egresado BOOLEAN NOT NULL DEFAULT FALSE,
     activo BOOLEAN NOT NULL DEFAULT TRUE,
@@ -179,7 +180,8 @@ CREATE TABLE IF NOT EXISTS inscripciones (
     id_estudiante INT NOT NULL,
     id_seccion INT NOT NULL,
     estado ENUM('activo', 'retirado') NOT NULL DEFAULT 'activo',
-    condicion ENUM('regular', 'repitiente', 'materia_pendiente', 'reingreso') NOT NULL DEFAULT 'regular',
+    condicion ENUM('regular', 'nuevo_ingreso', 'repitiente', 'materia_pendiente', 'reingreso') NOT NULL DEFAULT 'regular',
+    observaciones VARCHAR(255) NULL,
     fecha_inscripcion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_inscripcion_periodo_est (id_periodo, id_estudiante),
     CONSTRAINT fk_insc_periodo FOREIGN KEY (id_periodo)

@@ -1,0 +1,44 @@
+services:
+  db:
+    image: mariadb:10.11
+    container_name: los_laureles_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: los_laureles_dev
+      MARIADB_DATABASE: los_laureles_ce
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ../database/instalacion_completa_xampp.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: los_laureles_web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: los_laureles_dev
+      DB_NAME: los_laureles_ce
+      FLASK_DEBUG: "1"
+      PORT: "5000"
+    volumes:
+      - ..:/app
+
+volumes:
+  mariadb_data:

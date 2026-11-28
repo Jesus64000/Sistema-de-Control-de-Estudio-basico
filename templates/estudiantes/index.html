@@ -31,9 +31,23 @@
       </div>
 
       <div class="flex flex-wrap gap-2">
+        {% if id_seccion %}
+        <a href="{{ url_for('reportes.excel_matricula_inicial', id_seccion=id_seccion, id_periodo=id_periodo_sel) }}" class="btn px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 text-xs font-semibold">
+          Matrícula Inicial (MPPE)
+        </a>
+        {% elif periodo %}
+        <a href="{{ url_for('reportes.excel_matricula_inicial_multiple', id_periodo=id_periodo_sel, id_nivel=id_nivel or '', id_grado=id_grado or '') }}" class="btn px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 text-xs font-semibold">
+          Matrícula Inicial (MPPE)
+        </a>
+        {% endif %}
         <a href="{{ url_for('reportes.excel_nomina', id_periodo=id_periodo_sel, q=filtro, id_nivel=id_nivel or '', id_grado=id_grado or '', id_seccion=id_seccion or '', estado=estado) }}" class="btn px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
           Exportar Excel
         </a>
+        {% if periodo_activo and not periodo_activo.cerrado %}
+        <button type="button" onclick="abrirModal('modal-importar-nomina')" class="btn px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">
+          Importar Excel
+        </button>
+        {% endif %}
         {% if periodos_origen and periodo_activo and not periodo_activo.cerrado %}
         <button type="button" onclick="abrirModalProsecucion()" class="btn px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-200 text-xs font-semibold">
           Prosecución Masiva
@@ -282,6 +296,39 @@
 {% include "estudiantes/_modal_nuevo_estudiante.html" %}
 
 <!-- Modal Editar Estudiante (incluye cedula, cambio de seccion y Retirar/Reactivar) -->
+<div id="modal-importar-nomina" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
+  <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden">
+    <div class="px-5 py-4 bg-blue-700 text-white flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-bold">Importar Nómina desde Excel (.xlsx)</h3>
+        <p class="text-xs text-blue-100">Compatible con planillas de Matrícula Inicial (1.º a 5.º Año).</p>
+      </div>
+      <button type="button" onclick="cerrarModal('modal-importar-nomina')" class="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white" aria-label="Cerrar">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('estudiantes.importar_excel') }}" enctype="multipart/form-data" class="p-5 space-y-4">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="imp-archivo" class="block text-xs font-semibold mb-1">Archivo Excel (.xlsx) *</label>
+        <input id="imp-archivo" type="file" name="archivo" accept=".xlsx" required class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-950 dark:file:text-blue-300 file:font-semibold">
+      </div>
+      <div>
+        <label for="imp-seccion" class="block text-xs font-semibold mb-1">Sección de Destino</label>
+        <select id="imp-seccion" name="id_seccion" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+          <option value="">Detectar automáticamente por hoja (para archivos con varias secciones)</option>
+          {% for s in secciones %}
+          <option value="{{ s.id }}">{{ s.nivel_nombre }} · {{ s.grado_nombre }} "{{ s.nombre }}"</option>
+          {% endfor %}
+        </select>
+        <p class="text-[11px] opacity-70 mt-1">Los estudiantes sin cédula ("NO TIENE") recibirán un código provisional <b>SC-XXXX</b>.</p>
+      </div>
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+        <button type="button" onclick="cerrarModal('modal-importar-nomina')" class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-medium">Cancelar</button>
+        <button type="submit" class="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold">Importar Nómina</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="modal-editar-estudiante" class="hidden fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4">
   <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-2xl w-full shadow-xl overflow-hidden">
     <div class="bg-[#0f294a] text-white px-6 py-4 flex items-center justify-between">
@@ -318,6 +365,7 @@
               <label for="ed-condicion" class="block text-xs font-semibold mb-1">Condición de Inscripción</label>
               <select id="ed-condicion" name="condicion" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <option value="regular">Regular / Promovido</option>
+                <option value="nuevo_ingreso">Nuevo Ingreso</option>
                 <option value="materia_pendiente">Con Materia(s) Pendiente(s)</option>
                 <option value="repitiente">Repitiente</option>
                 <option value="reingreso">Reingreso</option>
@@ -344,6 +392,14 @@
               <label for="ed-fnac" class="block text-xs font-semibold mb-1">Fecha de Nacimiento</label>
               <input type="date" id="ed-fnac" name="fecha_nacimiento" onchange="validarCampoEditarEst('ed-fnac')" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
               <p id="err-ed-fnac" class="wiz-err hidden"></p>
+            </div>
+            <div>
+              <label for="ed-lnac" class="block text-xs font-semibold mb-1">Lugar de Nacimiento</label>
+              <input type="text" id="ed-lnac" name="lugar_nacimiento" maxlength="120" placeholder="Ej. Cabimas" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+            </div>
+            <div>
+              <label for="ed-obs" class="block text-xs font-semibold mb-1">Observaciones (Inscripción)</label>
+              <input type="text" id="ed-obs" name="observaciones" maxlength="255" placeholder="Ej. Nuevo Ingreso, Repite..." class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
             </div>
             <div class="sm:col-span-2">
               <label for="ed-dir" class="block text-xs font-semibold mb-1">Dirección del Estudiante</label>
@@ -646,6 +702,7 @@
             <div><b>Cédula:</b> ${escHtml(e.cedula || '-')}</div>
             <div><b>Género:</b> ${e.genero === 'F' ? 'Femenino' : 'Masculino'}</div>
             <div><b>Fecha Nacimiento:</b> ${escHtml(e.fecha_nacimiento || 'No registrada')}</div>
+            <div><b>Lugar Nacimiento:</b> ${escHtml(e.lugar_nacimiento || 'No registrado')}</div>
             <div><b>Dirección:</b> ${escHtml(e.direccion || 'No registrada')}</div>
           </div>
           <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2">
@@ -800,6 +857,8 @@
     document.getElementById('ed-nombres').value = est.nombres || '';
     document.getElementById('ed-genero').value = est.genero || 'M';
     document.getElementById('ed-fnac').value = est.fecha_nacimiento ? String(est.fecha_nacimiento).slice(0, 10) : '';
+    document.getElementById('ed-lnac').value = est.lugar_nacimiento || '';
+    document.getElementById('ed-obs').value = est.observaciones || '';
     document.getElementById('ed-dir').value = est.direccion || '';
     document.getElementById('ed-rep-ci').value = est.rep_cedula || '';
     document.getElementById('ed-rep-par').value = est.rep_parentesco || 'Representante Legal';
@@ -880,6 +939,11 @@
     });
   }
 
+  function _tieneDatosRepEditar() {
+    return ['ed-rep-ci', 'ed-rep-ape', 'ed-rep-nom', 'ed-rep-tel']
+      .some(cid => (document.getElementById(cid)?.value || '').trim() !== '');
+  }
+
   function validarCampoEditarEst(id, enVivo) {
     const inp = document.getElementById(id);
     if (!inp) return true;
@@ -887,14 +951,17 @@
     const val = inp.value.trim();
 
     if (id === 'ed-cedula' || id === 'ed-rep-ci') {
+      if (id === 'ed-rep-ci' && !val && !_tieneDatosRepEditar()) return _setErrEditarEst(id, '', enVivo);
       if (!val) return _setErrEditarEst(id, 'La cédula es obligatoria.', enVivo);
-      const norm = val.toUpperCase().replace(/\s+/g, '');
-      const m = norm.match(/^([VE])?-?(\d{6,12})$/);
-      if (!m) return _setErrEditarEst(id, 'Formato válido: V-12345678 o E-12345678 (6 a 12 dígitos).', enVivo);
+      const norm = val.toUpperCase().replace(/[\s\.]+/g, '');
+      const patron = id === 'ed-cedula' ? /^(V|E|SC|CE)?-?(\d{4,12})$/ : /^([VE])?-?(\d{6,12})$/;
+      const m = norm.match(patron);
+      if (!m) return _setErrEditarEst(id, 'Formato válido: V-12345678, E-12345678 o SC-0001.', enVivo);
       if (!enVivo) inp.value = (m[1] || 'V') + '-' + m[2];
       return _setErrEditarEst(id, '', enVivo);
     }
     if (id === 'ed-apellidos' || id === 'ed-nombres' || id === 'ed-rep-ape' || id === 'ed-rep-nom') {
+      if ((id === 'ed-rep-ape' || id === 'ed-rep-nom') && !val && !_tieneDatosRepEditar()) return _setErrEditarEst(id, '', enVivo);
       if (!val) return _setErrEditarEst(id, 'Este campo es obligatorio.', enVivo);
       if (val.length < 2) return _setErrEditarEst(id, 'Debe tener al menos 2 caracteres.', enVivo);
       if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñÜü'\-\s]+$/.test(val)) {
@@ -912,7 +979,7 @@
       return _setErrEditarEst(id, '', enVivo);
     }
     if (id === 'ed-rep-tel' || id === 'ed-rep-telt') {
-      const oblig = id === 'ed-rep-tel';
+      const oblig = id === 'ed-rep-tel' && _tieneDatosRepEditar();
       if (!val) return oblig ? _setErrEditarEst(id, 'El teléfono es obligatorio.', enVivo) : _setErrEditarEst(id, '', enVivo);
       const dig = val.replace(/\D/g, '');
       if (!/^0(2|4)\d{9}$/.test(dig)) {

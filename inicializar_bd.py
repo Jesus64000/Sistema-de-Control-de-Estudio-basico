@@ -83,8 +83,43 @@ def inicializar():
             if cur.fetchone()["c"] == 0:
                 cur.execute(
                     "ALTER TABLE inscripciones "
-                    "ADD COLUMN condicion ENUM('regular', 'repitiente', 'materia_pendiente', 'reingreso') "
+                    "ADD COLUMN condicion ENUM('regular', 'nuevo_ingreso', 'repitiente', 'materia_pendiente', 'reingreso') "
                     "NOT NULL DEFAULT 'regular' AFTER estado"
+                )
+            else:
+                cur.execute(
+                    "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS "
+                    "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'inscripciones' AND COLUMN_NAME = 'condicion'",
+                    (Config.DB_NAME,),
+                )
+                col_cond = cur.fetchone()
+                if col_cond and "nuevo_ingreso" not in (col_cond["COLUMN_TYPE"] or ""):
+                    cur.execute(
+                        "ALTER TABLE inscripciones "
+                        "MODIFY COLUMN condicion ENUM('regular', 'nuevo_ingreso', 'repitiente', 'materia_pendiente', 'reingreso') "
+                        "NOT NULL DEFAULT 'regular'"
+                    )
+
+            # Migracion segura: lugar_nacimiento en estudiantes
+            cur.execute(
+                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS "
+                "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'estudiantes' AND COLUMN_NAME = 'lugar_nacimiento'",
+                (Config.DB_NAME,),
+            )
+            if cur.fetchone()["c"] == 0:
+                cur.execute(
+                    "ALTER TABLE estudiantes ADD COLUMN lugar_nacimiento VARCHAR(120) NULL AFTER fecha_nacimiento"
+                )
+
+            # Migracion segura: observaciones en inscripciones
+            cur.execute(
+                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS "
+                "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'inscripciones' AND COLUMN_NAME = 'observaciones'",
+                (Config.DB_NAME,),
+            )
+            if cur.fetchone()["c"] == 0:
+                cur.execute(
+                    "ALTER TABLE inscripciones ADD COLUMN observaciones VARCHAR(255) NULL AFTER condicion"
                 )
 
             # Migracion segura: permitir notas decimales (ej. 11.5, 18.4) en calificaciones_secundaria
@@ -221,6 +256,7 @@ def inicializar():
                     ("Matemáticas", "MAT", id_bloque_cientifica, False),
                     ("Castellano", "CAS", id_bloque_general, False),
                     ("Inglés", "ING", id_bloque_general, False),
+                    ("Geografía, Historia y Ciudadanía", "GHC", id_bloque_general, False),
                     ("Educación Física", "EDF", id_bloque_general, True),
                 ]
                 materias_desde_tercero = [
@@ -228,12 +264,22 @@ def inicializar():
                     ("Química", "QUI", id_bloque_cientifica, False),
                     ("Biología", "BIO", id_bloque_cientifica, False),
                 ]
+                materias_tercero_cuarto = [
+                    ("Formación para la Soberanía Nacional", "FSN", id_bloque_general, False),
+                ]
+                materias_quinto = [
+                    ("Ciencias de la Tierra", "CT", id_bloque_cientifica, False),
+                ]
                 for g in grados_rows:
                     if g["id_nivel"] != id_media or g["nombre"] not in {x[0] for x in grados_media}:
                         continue
                     lista_mat = list(materias_comunes)
                     if g["orden"] >= 3:
                         lista_mat.extend(materias_desde_tercero)
+                    if g["orden"] in (3, 4):
+                        lista_mat.extend(materias_tercero_cuarto)
+                    if g["orden"] == 5:
+                        lista_mat.extend(materias_quinto)
                     for nom_m, cod_m, id_blq, esp in lista_mat:
                         cur.execute(
                             "INSERT IGNORE INTO materias (id_grado_anio, id_bloque, nombre, codigo, es_especial, activo) "

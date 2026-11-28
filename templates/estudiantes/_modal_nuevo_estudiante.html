@@ -110,6 +110,10 @@
               <div>
                 <label for="new-est-ci" class="block text-xs font-semibold mb-1">Cédula / Cédula Escolar <span class="text-red-700 dark:text-red-400">*</span></label>
                 <input id="new-est-ci" type="text" name="cedula" maxlength="16" autocomplete="off" placeholder="Ej. V-30123456" aria-describedby="err-new-est-ci" required class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm tabular-nums">
+                <label class="inline-flex items-center gap-1.5 mt-1 text-[11px] opacity-80 cursor-pointer">
+                  <input id="new-est-sin-ci" type="checkbox" name="sin_cedula" value="1" onchange="toggleSinCedulaEst()" class="rounded border-slate-300 dark:border-slate-700">
+                  <span>No posee cédula (generar Cédula Escolar con C.I. del representante)</span>
+                </label>
                 <p id="err-new-est-ci" class="wiz-field-error hidden" role="alert"></p>
               </div>
               <div>
@@ -135,6 +139,10 @@
                 <p id="err-new-est-fnac" class="wiz-field-error hidden" role="alert"></p>
               </div>
               <div>
+                <label for="new-est-lnac" class="block text-xs font-semibold mb-1">Lugar de Nacimiento</label>
+                <input id="new-est-lnac" type="text" name="lugar_nacimiento" maxlength="120" placeholder="Ej. Cabimas, Edo. Zulia" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+              </div>
+              <div class="sm:col-span-2">
                 <label for="new-est-dir" class="block text-xs font-semibold mb-1">Dirección de Habitación</label>
                 <input id="new-est-dir" type="text" name="direccion" maxlength="200" placeholder="Ej. Urb. Los Laureles, sector 6" aria-describedby="err-new-est-dir" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                 <p id="err-new-est-dir" class="wiz-field-error hidden" role="alert"></p>
@@ -236,14 +244,19 @@
                 </select>
                 <p id="err-new-est-sec" class="wiz-field-error hidden" role="alert"></p>
               </div>
-              <div class="sm:col-span-2">
+              <div>
                 <label for="new-est-condicion" class="block text-xs font-semibold mb-1">Condición de Inscripción</label>
                 <select id="new-est-condicion" name="condicion" onchange="actualizarResumenWizard()" class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
                   <option value="regular">Regular / Promovido</option>
+                  <option value="nuevo_ingreso">Nuevo Ingreso</option>
                   <option value="materia_pendiente">Con Materia(s) Pendiente(s)</option>
                   <option value="repitiente">Repitiente</option>
                   <option value="reingreso">Reingreso</option>
                 </select>
+              </div>
+              <div>
+                <label for="new-est-obs" class="block text-xs font-semibold mb-1">Observaciones</label>
+                <input id="new-est-obs" type="text" name="observaciones" maxlength="255" placeholder="Ej. Repite con todas, Convenio, MP..." class="wiz-input w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
               </div>
             </div>
 
@@ -388,6 +401,11 @@
     let esObligatorio = false;
 
     if (id === 'new-est-ci') {
+      const sinCi = document.getElementById('new-est-sin-ci')?.checked;
+      if (sinCi) {
+        _setEstadoCampoWizard(el, '', false);
+        return true;
+      }
       esObligatorio = true;
       if (opts.normalizar && val) {
         val = _normalizarCedulaValor(val);
@@ -396,7 +414,7 @@
       const norm = _normalizarCedulaValor(val);
       if (!norm) {
         error = 'Ingrese la cédula o cédula escolar del estudiante.';
-      } else if (!/^[VE]-\d{6,12}$/.test(norm)) {
+      } else if (!/^(V|E|SC|CE)-\d{4,12}$/.test(norm)) {
         error = 'Use V- o E- seguido de 6 a 12 dígitos (ej. V-30123456).';
       }
     } else if (id === 'new-est-ape' || id === 'new-est-nom' || id === 'new-rep-ape' || id === 'new-rep-nom') {
@@ -809,6 +827,19 @@
     document.getElementById('est-rec-box').classList.add('hidden');
     document.getElementById('new-est-titulo').textContent = 'Inscribir / Reinscribir Estudiante';
     irPasoInscripcion(1, false);
+  }
+
+  function toggleSinCedulaEst() {
+    const chk = document.getElementById('new-est-sin-ci');
+    const inp = document.getElementById('new-est-ci');
+    if (!chk || !inp) return;
+    inp.disabled = chk.checked;
+    inp.required = !chk.checked;
+    if (chk.checked) {
+      inp.value = '';
+      _setEstadoCampoWizard(inp, '', false);
+    }
+    actualizarResumenWizard();
   }
 
   function abrirModalNuevoEstudiante() {

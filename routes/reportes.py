@@ -27,6 +27,8 @@ from services.estudiante_service import (
 )
 from services.excel_service import (
     exportar_lista_asistencia,
+    exportar_matricula_inicial,
+    exportar_matricula_inicial_multiple,
     exportar_nomina_estudiantes,
     exportar_planilla_materia,
     exportar_sabana_primaria,
@@ -233,6 +235,67 @@ def excel_nomina():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=f"Nomina_Estudiantes_{etiqueta_periodo}.xlsx",
+    )
+
+
+@reportes_bp.route("/excel/matricula-inicial", methods=["GET"])
+@roles_required("admin", "operador")
+def excel_matricula_inicial_multiple():
+    periodo, _, _, _ = resolver_periodo_consulta(
+        request.args.get("id_periodo", type=int),
+        session.get("periodo_consulta_id"),
+    )
+    if not periodo:
+        flash("No hay período escolar seleccionado.", "error")
+        return redirect(url_for("estudiantes.index"))
+
+    id_nivel = request.args.get("id_nivel", type=int)
+    id_grado = request.args.get("id_grado", type=int)
+    secciones = listar_secciones(periodo["id"], id_nivel=id_nivel)
+    if id_grado:
+        secciones = [s for s in secciones if s.get("id_grado_anio") == id_grado]
+
+    secciones_est = []
+    for sec in secciones:
+        est_sec = listar_inscripciones(periodo["id"], id_seccion=sec["id"], estado="activo")
+        if est_sec:
+            secciones_est.append((sec, est_sec))
+
+    if not secciones_est:
+        flash("No hay estudiantes inscritos en las secciones seleccionadas.", "error")
+        return redirect(url_for("estudiantes.index"))
+
+    cfg = obtener_configuracion()
+    buf = exportar_matricula_inicial_multiple(secciones_est, cfg, periodo["nombre"])
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"Matricula_Inicial_{periodo['nombre']}.xlsx",
+    )
+
+
+@reportes_bp.route("/excel/matricula-inicial/<int:id_seccion>", methods=["GET"])
+@roles_required("admin", "operador")
+def excel_matricula_inicial(id_seccion: int):
+    sec = obtener_seccion_por_id(id_seccion)
+    if not sec:
+        flash("Sección no encontrada.", "error")
+        return redirect(url_for("estudiantes.index"))
+    periodo, _, _, _ = resolver_periodo_consulta(
+        request.args.get("id_periodo", type=int) or sec.get("id_periodo"),
+        session.get("periodo_consulta_id"),
+    )
+    id_periodo = periodo["id"] if periodo else sec["id_periodo"]
+    etiqueta_periodo = periodo["nombre"] if periodo else ""
+    cfg = obtener_configuracion()
+    estudiantes = listar_inscripciones(id_periodo, id_seccion=id_seccion, estado="activo")
+    buf = exportar_matricula_inicial(sec, estudiantes, cfg, etiqueta_periodo)
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"Matricula_Inicial_{sec['grado_nombre']}_{sec['nombre']}_{etiqueta_periodo}.xlsx",
     )
 
 

@@ -4,18 +4,30 @@ from db import ejecutar_accion, ejecutar_consulta, obtener_conexion
 from services.academico_service import obtener_grado_siguiente, verificar_periodo_editable
 from services.calificacion_service import obtener_boletin_estudiante
 
-CONDICIONES_VALIDAS = ("regular", "repitiente", "materia_pendiente", "reingreso")
+CONDICIONES_VALIDAS = ("regular", "nuevo_ingreso", "repitiente", "materia_pendiente", "reingreso")
 
 _RE_NOMBRE = re.compile(r"^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ\s'\-]+$")
 _RE_EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$")
 _RE_TEL_VE = re.compile(r"^(0412|0414|0424|0416|0426|0422|02\d{2})\d{7}$")
+_MARCADORES_SIN_CI = {"", "NOTIENE", "VNOTIENE", "SINCEDULA", "S/C", "SC", "N/T"}
 
 
-def normalizar_y_validar_cedula(valor: str, etiqueta: str, max_digitos: int = 12) -> str:
-    """Normaliza y valida una cedula venezolana o cedula escolar (V-/E- + digitos)."""
+def normalizar_y_validar_cedula(
+    valor: str,
+    etiqueta: str,
+    max_digitos: int = 12,
+    permitir_sin_cedula: bool = False,
+) -> str:
+    """Normaliza y valida una cedula venezolana o cedula escolar (V-/E-/CE-/SC-)."""
     crudo = re.sub(r"[\s\.]+", "", (valor or "").strip().upper())
+    if permitir_sin_cedula and crudo in _MARCADORES_SIN_CI:
+        return "__GENERAR__"
     if not crudo:
         raise ValueError(f"La {etiqueta} es obligatoria.")
+    if re.match(r"^(SC|CE)-?\d{4,12}$", crudo):
+        pref = crudo[:2]
+        num = crudo[2:].lstrip("-")
+        return f"{pref}-{num}"
     if crudo.isdigit():
         crudo = f"V-{crudo}"
     elif re.match(r"^[VE]\d+$", crudo):
@@ -25,6 +37,50 @@ def normalizar_y_validar_cedula(valor: str, etiqueta: str, max_digitos: int = 12
             f"La {etiqueta} tiene formato inválido. Use V- o E- seguido de 6 a {max_digitos} dígitos."
         )
     return crudo
+
+
+def generar_cedula_provisional(cur) -> str:
+    """Genera un identificador unico SC-0001 para estudiantes que aun no poseen cedula."""
+    cur.execute(
+        "SELECT cedula FROM estudiantes WHERE cedula LIKE 'SC-%' "
+        "ORDER BY CAST(SUBSTRING(cedula, 4) AS UNSIGNED) DESC, id DESC LIMIT 1"
+    )
+    row = cur.fetchone()
+    siguiente = 1
+    if row and row.get("cedula"):
+        m = re.search(r"(\d+)$", row["cedula"])
+        if m:
+            siguiente = int(m.group(1)) + 1
+    while True:
+        cand = f"SC-{siguiente:04d}"
+        cur.execute("SELECT 1 FROM estudiantes WHERE cedula = %s", (cand,))
+        if not cur.fetchone():
+            return cand
+        siguiente += 1
+
+
+def generar_cedula_escolar(cur, rep_cedula: str, fecha_nacimiento=None) -> str:
+    """Genera una Cedula Escolar venezolana (CE-[orden][AA][CI_rep]) unica a partir del representante."""
+    from datetime import date
+
+    dig_rep = re.sub(r"\D", "", rep_cedula or "")
+    if not dig_rep:
+        return generar_cedula_provisional(cur)
+    rep_8 = dig_rep.zfill(8)[-8:]
+
+    yy = date.today().strftime("%y")
+    if isinstance(fecha_nacimiento, date):
+        yy = fecha_nacimiento.strftime("%y")
+    elif isinstance(fecha_nacimiento, str) and len(fecha_nacimiento) >= 4 and fecha_nacimiento[:4].isdigit():
+        yy = fecha_nacimiento[2:4]
+
+    orden = 1
+    while True:
+        cand = f"CE-{orden}{yy}{rep_8}"
+        cur.execute("SELECT 1 FROM estudiantes WHERE cedula = %s", (cand,))
+        if not cur.fetchone():
+            return cand
+        orden += 1
 
 
 def validar_texto_persona(valor: str, etiqueta: str) -> str:
@@ -68,6 +124,20 @@ def validar_direccion_opcional(valor: str, etiqueta: str) -> str:
     if len(limpio) < 5 or len(limpio) > 200:
         raise ValueError(f"La {etiqueta} debe tener entre 5 y 200 caracteres.")
     return limpio
+
+
+def validar_lugar_nacimiento_opcional(valor: str) -> str:
+    limpio = re.sub(r"\s+", " ", (valor or "").strip())
+    if not limpio:
+        return ""
+    if len(limpio) > 120:
+        raise ValueError("El lugar de nacimiento no debe exceder 120 caracteres.")
+    return limpio
+
+
+def validar_observaciones_opcional(valor: str) -> str:
+    limpio = re.sub(r"\s+", " ", (valor or "").strip())
+    return limpio[:255] if limpio else ""
 
 
 def validar_fecha_nacimiento_opcional(valor: str):
@@ -153,7 +223,7 @@ def listar_inscripciones(
     estado: str = None,
 ):
     sql = (
-        "SELECT i.id AS id_inscripcion, i.estado, i.condicion, i.id_seccion, i.fecha_inscripcion, "
+        "SELECT i.id AS id_inscripcion, i.estado, i.condicion, i.observaciones, i.id_seccion, i.fecha_inscripcion, "
         "e.*, g.id AS id_grado, g.nombre AS grado_nombre, "
         "n.id AS id_nivel, n.nombre AS nivel_nombre, n.tipo_escala, "
         "s.nombre AS seccion_nombre, "
@@ -272,7 +342,7 @@ def listar_directorio_estudiantes(
         )
 
     sql = (
-        "SELECT i.id AS id_inscripcion, i.estado, i.condicion, i.id_seccion, i.fecha_inscripcion, i.id_periodo AS id_periodo_insc, "
+        "SELECT i.id AS id_inscripcion, i.estado, i.condicion, i.observaciones, i.id_seccion, i.fecha_inscripcion, i.id_periodo AS id_periodo_insc, "
         "p_insc.nombre AS periodo_insc_nombre, "
         "e.*, g.id AS id_grado, g.nombre AS grado_nombre, "
         "n.id AS id_nivel, n.nombre AS nivel_nombre, n.tipo_escala, "
@@ -377,7 +447,7 @@ def listar_inscripciones_por_ids(ids_inscripcion: list):
         return []
     ph = ",".join(["%s"] * len(ids_inscripcion))
     sql = (
-        "SELECT i.id AS id_inscripcion, i.estado, i.condicion, i.id_seccion, i.fecha_inscripcion, "
+        "SELECT i.id AS id_inscripcion, i.estado, i.condicion, i.observaciones, i.id_seccion, i.fecha_inscripcion, "
         "e.*, g.id AS id_grado, g.nombre AS grado_nombre, "
         "n.id AS id_nivel, n.nombre AS nivel_nombre, n.tipo_escala, "
         "s.nombre AS seccion_nombre, "
@@ -586,11 +656,17 @@ def _upsert_representante(cur, datos: dict, cedula_estudiante: str = "") -> int:
 
 def registrar_e_inscribir_estudiante(datos: dict, id_periodo: int, id_seccion: int) -> int:
     verificar_periodo_editable(id_periodo)
-    cedula = normalizar_y_validar_cedula(datos.get("cedula", ""), "cédula del estudiante", max_digitos=12)
+    sin_cedula = str(datos.get("sin_cedula") or "").strip() in ("1", "true", "on", "si")
+    cedula_raw = "" if sin_cedula else datos.get("cedula", "")
+    cedula = normalizar_y_validar_cedula(
+        cedula_raw, "cédula del estudiante", max_digitos=12, permitir_sin_cedula=True
+    )
     nombres = validar_texto_persona(datos.get("nombres", ""), "Los nombres del estudiante")
     apellidos = validar_texto_persona(datos.get("apellidos", ""), "Los apellidos del estudiante")
     fecha_nacimiento = validar_fecha_nacimiento_opcional(datos.get("fecha_nacimiento", ""))
+    lugar_nacimiento = validar_lugar_nacimiento_opcional(datos.get("lugar_nacimiento", ""))
     direccion = validar_direccion_opcional(datos.get("direccion", ""), "dirección del estudiante")
+    observaciones = validar_observaciones_opcional(datos.get("observaciones", ""))
     genero = (datos.get("genero") or "M").strip()
     if genero not in ("M", "F"):
         genero = "M"
@@ -601,11 +677,27 @@ def registrar_e_inscribir_estudiante(datos: dict, id_periodo: int, id_seccion: i
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
+            if cedula == "__GENERAR__":
+                rep_ci_val = normalizar_y_validar_cedula(
+                    datos.get("rep_cedula", ""), "cédula del representante", max_digitos=9
+                )
+                cedula = generar_cedula_escolar(cur, rep_ci_val, fecha_nacimiento)
             id_rep = _upsert_representante(cur, datos, cedula_estudiante=cedula)
 
-            cur.execute("SELECT id FROM estudiantes WHERE cedula = %s", (cedula,))
+            cur.execute("SELECT id, nombres, apellidos FROM estudiantes WHERE cedula = %s", (cedula,))
             est = cur.fetchone()
             if est:
+                id_est_form = str(datos.get("id_estudiante_existente") or "").strip()
+                mismo_id = id_est_form.isdigit() and int(id_est_form) == est["id"]
+                mismo_nombre = (
+                    re.sub(r"\s+", " ", (est["apellidos"] or "").strip().upper()) == apellidos.upper()
+                    and re.sub(r"\s+", " ", (est["nombres"] or "").strip().upper()) == nombres.upper()
+                )
+                if not (mismo_id or mismo_nombre):
+                    raise ValueError(
+                        f"La cédula {cedula} ya pertenece a otro estudiante ({est['apellidos']} {est['nombres']}). "
+                        "No pueden existir dos estudiantes con la misma cédula."
+                    )
                 id_estudiante = est["id"]
                 rec_prev = evaluar_recomendacion_reinscripcion(id_estudiante, id_periodo_destino=id_periodo)
                 if rec_prev.get("tiene_historial") and rec_prev.get("solo_superiores"):
@@ -627,27 +719,29 @@ def registrar_e_inscribir_estudiante(datos: dict, id_periodo: int, id_seccion: i
                                 "debe inscribirse en un grado o año superior."
                             )
                 cur.execute(
-                    "UPDATE estudiantes SET nombres=%s, apellidos=%s, genero=%s, fecha_nacimiento=%s, direccion=%s, egresado=FALSE, activo=TRUE "
-                    "WHERE id=%s",
+                    "UPDATE estudiantes SET nombres=%s, apellidos=%s, genero=%s, fecha_nacimiento=%s, "
+                    "lugar_nacimiento=%s, direccion=%s, egresado=FALSE, activo=TRUE WHERE id=%s",
                     (
                         nombres,
                         apellidos,
                         genero,
                         fecha_nacimiento,
+                        lugar_nacimiento,
                         direccion,
                         id_estudiante,
                     ),
                 )
             else:
                 cur.execute(
-                    "INSERT INTO estudiantes (cedula, nombres, apellidos, genero, fecha_nacimiento, direccion, egresado, activo) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, FALSE, TRUE)",
+                    "INSERT INTO estudiantes (cedula, nombres, apellidos, genero, fecha_nacimiento, lugar_nacimiento, direccion, egresado, activo) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, TRUE)",
                     (
                         cedula,
                         nombres,
                         apellidos,
                         genero,
                         fecha_nacimiento,
+                        lugar_nacimiento,
                         direccion,
                     ),
                 )
@@ -661,10 +755,10 @@ def registrar_e_inscribir_estudiante(datos: dict, id_periodo: int, id_seccion: i
             )
 
             cur.execute(
-                "INSERT INTO inscripciones (id_periodo, id_estudiante, id_seccion, estado, condicion) "
-                "VALUES (%s, %s, %s, 'activo', %s) "
-                "ON DUPLICATE KEY UPDATE id_seccion = VALUES(id_seccion), estado = 'activo', condicion = VALUES(condicion)",
-                (id_periodo, id_estudiante, id_seccion, condicion),
+                "INSERT INTO inscripciones (id_periodo, id_estudiante, id_seccion, estado, condicion, observaciones) "
+                "VALUES (%s, %s, %s, 'activo', %s, %s) "
+                "ON DUPLICATE KEY UPDATE id_seccion = VALUES(id_seccion), estado = 'activo', condicion = VALUES(condicion), observaciones = VALUES(observaciones)",
+                (id_periodo, id_estudiante, id_seccion, condicion, observaciones),
             )
             cur.execute(
                 "SELECT id FROM inscripciones WHERE id_periodo = %s AND id_estudiante = %s",
@@ -979,36 +1073,55 @@ def actualizar_estudiante(eid: int, datos: dict):
     nombres = validar_texto_persona(datos.get("nombres", ""), "Los nombres del estudiante")
     apellidos = validar_texto_persona(datos.get("apellidos", ""), "Los apellidos del estudiante")
     fecha_nacimiento = validar_fecha_nacimiento_opcional(datos.get("fecha_nacimiento", ""))
+    lugar_nacimiento = validar_lugar_nacimiento_opcional(datos.get("lugar_nacimiento", ""))
     direccion = validar_direccion_opcional(datos.get("direccion", ""), "dirección del estudiante")
+    observaciones = validar_observaciones_opcional(datos.get("observaciones", ""))
     genero = (datos.get("genero") or "M").strip()
     if genero not in ("M", "F"):
         genero = "M"
 
+    tiene_datos_rep = any(
+        (datos.get(k) or "").strip()
+        for k in ("rep_cedula", "rep_nombres", "rep_apellidos", "rep_telefono")
+    )
+
     conn = obtener_conexion()
     try:
         with conn.cursor() as cur:
-            id_rep = _upsert_representante(cur, datos, cedula_estudiante=cedula)
             if cedula:
                 cur.execute(
-                    "UPDATE estudiantes SET cedula=%s, nombres=%s, apellidos=%s, genero=%s, fecha_nacimiento=%s, direccion=%s WHERE id=%s",
+                    "SELECT id, nombres, apellidos FROM estudiantes WHERE cedula = %s AND id <> %s",
+                    (cedula, eid),
+                )
+                dup = cur.fetchone()
+                if dup:
+                    raise ValueError(
+                        f"La cédula {cedula} ya pertenece a otro estudiante ({dup['apellidos']} {dup['nombres']})."
+                    )
+            id_rep = _upsert_representante(cur, datos, cedula_estudiante=cedula) if tiene_datos_rep else None
+            if cedula:
+                cur.execute(
+                    "UPDATE estudiantes SET cedula=%s, nombres=%s, apellidos=%s, genero=%s, fecha_nacimiento=%s, lugar_nacimiento=%s, direccion=%s WHERE id=%s",
                     (
                         cedula,
                         nombres,
                         apellidos,
                         genero,
                         fecha_nacimiento,
+                        lugar_nacimiento,
                         direccion,
                         eid,
                     ),
                 )
             else:
                 cur.execute(
-                    "UPDATE estudiantes SET nombres=%s, apellidos=%s, genero=%s, fecha_nacimiento=%s, direccion=%s WHERE id=%s",
+                    "UPDATE estudiantes SET nombres=%s, apellidos=%s, genero=%s, fecha_nacimiento=%s, lugar_nacimiento=%s, direccion=%s WHERE id=%s",
                     (
                         nombres,
                         apellidos,
                         genero,
                         fecha_nacimiento,
+                        lugar_nacimiento,
                         direccion,
                         eid,
                     ),
@@ -1050,12 +1163,19 @@ def actualizar_estudiante(eid: int, datos: dict):
                             "UPDATE inscripciones SET condicion = %s WHERE id = %s AND id_estudiante = %s",
                             (condicion, int(id_inscripcion), eid),
                         )
-            cur.execute("UPDATE estudiante_representantes SET es_principal = FALSE WHERE id_estudiante = %s", (eid,))
-            cur.execute(
-                "INSERT INTO estudiante_representantes (id_estudiante, id_representante, es_principal) "
-                "VALUES (%s, %s, TRUE) ON DUPLICATE KEY UPDATE es_principal = TRUE",
-                (eid, id_rep),
-            )
+                    if "observaciones" in datos:
+                        verificar_periodo_editable(insc_actual["id_periodo"])
+                        cur.execute(
+                            "UPDATE inscripciones SET observaciones = %s WHERE id = %s AND id_estudiante = %s",
+                            (observaciones, int(id_inscripcion), eid),
+                        )
+            if id_rep:
+                cur.execute("UPDATE estudiante_representantes SET es_principal = FALSE WHERE id_estudiante = %s", (eid,))
+                cur.execute(
+                    "INSERT INTO estudiante_representantes (id_estudiante, id_representante, es_principal) "
+                    "VALUES (%s, %s, TRUE) ON DUPLICATE KEY UPDATE es_principal = TRUE",
+                    (eid, id_rep),
+                )
         conn.commit()
     except Exception:
         conn.rollback()
